@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('launcher', {
   close: () => ipcRenderer.send('window:close'),
   launchFiveM: (opts) => ipcRenderer.invoke('fivem:launch', opts),
   findFiveMPath: () => ipcRenderer.invoke('fivem:findDefaultPath'),
+  isFivemExePathValid: (exePath) => ipcRenderer.invoke('fivem:isExePathValid', exePath),
   downloadInstallFiveM: () => ipcRenderer.invoke('fivem:downloadInstall'),
   onFivemInstallProgress: (listener) => {
     if (typeof listener !== 'function') return () => {};

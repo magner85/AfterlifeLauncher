@@ -688,6 +688,18 @@ html, body {
 
   async function ensureFivemPathInConfig() {
     let p = getFivemExePath();
+    if (p && typeof window.launcher.isFivemExePathValid === 'function') {
+      try {
+        const v = await window.launcher.isFivemExePathValid(p);
+        if (!v || !v.ok) {
+          await savePartial({ fivemExePath: '' });
+          p = '';
+        }
+      } catch (_) {
+        await savePartial({ fivemExePath: '' });
+        p = '';
+      }
+    }
     if (p) return p;
     try {
       const found = await window.launcher.findFiveMPath();

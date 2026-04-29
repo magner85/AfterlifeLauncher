@@ -1932,18 +1932,37 @@ function findBundledFivemZipPath() {
   return '';
 }
 
+/** Несколько URL подряд: свой → raw → /raw/ → классический релиз fivem-bundle. */
+function collectFivemZipDownloadUrls(cfg) {
+  const urls = [];
+  const add = (u) => {
+    try {
+      const x = String(u || '').trim();
+      if (!x) return;
+      const o = new URL(x);
+      if (o.protocol !== 'http:' && o.protocol !== 'https:') return;
+      const h = o.href;
+      if (!urls.includes(h)) urls.push(h);
+    } catch {}
+  };
+  add(cfg.fivemClientZipUrl);
+  const repo = parseGithubRepo(cfg.updateRepo) || parseGithubRepo(DEFAULT_SELF_UPDATE_REPO);
+  const branch = String(cfg.fivemBundleBranch || cfg.updateBranch || 'stable').trim() || 'stable';
+  if (repo) {
+    add(rawGithubFileUrl(repo.owner, repo.repo, branch, 'FiveM.zip'));
+    add(`https://github.com/${repo.owner}/${repo.repo}/raw/${encodeURIComponent(branch)}/FiveM.zip`);
+  }
+  add(defaultFivemZipUrlFromConfig(cfg));
+  add(FIVEM_BUNDLE_RELEASE_ZIP_URL);
+  return urls;
+}
+
 function resolveFivemZipSource(cfg) {
   const local = findBundledFivemZipPath();
   if (local) return { kind: 'local', path: local };
-  const urlStr = String(cfg.fivemClientZipUrl || '').trim();
-  const candidate = urlStr || defaultFivemZipUrlFromConfig(cfg) || FIVEM_BUNDLE_RELEASE_ZIP_URL;
-  try {
-    const u = new URL(candidate);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    return { kind: 'remote', url: u.href };
-  } catch {
-    return null;
-  }
+  const urls = collectFivemZipDownloadUrls(cfg);
+  if (!urls.length) return null;
+  return { kind: 'remote', urls };
 }
 
 function downloadHttpOrHttpsToFileWithProgress(startUrl, destPath, onProgress) {
@@ -1966,7 +1985,13 @@ function downloadHttpOrHttpsToFileWithProgress(startUrl, destPath, onProgress) {
       }
       const req = lib.get(
         u,
-        { headers: { 'User-Agent': 'AfterlifeLauncher/1.0 (Windows; FiveM bundle)' } },
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            Accept: '*/*'
+          }
+        },
         (res) => {
           if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
             res.resume();
@@ -2109,7 +2134,8 @@ ipcMain.handle('fivem:downloadInstall', async () => {
   if (!source) {
     return {
       ok: false,
-      error: 'Некорректный fivemClientZipUrl в launcher.config.json.'
+      error:
+        'Нет источника FiveM.zip: задайте fivemClientZipUrl в launcher.config.json или положите архив в bundled-fivem при сборке.'
     };
   }
   const workDir = path.join(app.getPath('temp'), 'afterlife-fivem-bundle');
@@ -2130,27 +2156,52 @@ ipcMain.handle('fivem:downloadInstall', async () => {
       });
       fs.copyFileSync(source.path, zipOnDisk);
     } else {
-      sendFivemInstallProgress({
-        phase: 'download',
-        percent: 0,
-        indeterminate: false,
-        label: 'Загрузка архива FiveM…',
-        hint: ''
-      });
-      await downloadHttpOrHttpsToFileWithProgress(source.url, zipOnDisk, (received, total) => {
-        const pct = total > 0 ? Math.min(99, Math.floor((received / total) * 100)) : 0;
-        const hint =
-          total > 0
-            ? `${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} МБ`
-            : `${(received / 1048576).toFixed(1)} МБ`;
-        sendFivemInstallProgress({
-          phase: 'download',
-          percent: pct,
-          indeterminate: false,
-          label: 'Загрузка архива FiveM…',
-          hint
-        });
-      });
+      const urlList = Array.isArray(source.urls) ? source.urls.filter(Boolean) : [];
+      if (!urlList.length) {
+        return { ok: false, error: 'Пустой список URL для FiveM.zip.' };
+      }
+      let lastErr = null;
+      for (let i = 0; i < urlList.length; i++) {
+        const oneUrl = urlList[i];
+        try {
+          if (fs.existsSync(zipOnDisk)) {
+            try {
+              fs.unlinkSync(zipOnDisk);
+            } catch (_) {}
+          }
+          const hintBase =
+            urlList.length > 1 ? `источник ${i + 1} из ${urlList.length}` : '';
+          sendFivemInstallProgress({
+            phase: 'download',
+            percent: 0,
+            indeterminate: false,
+            label: 'Загрузка архива FiveM…',
+            hint: hintBase
+          });
+          await downloadHttpOrHttpsToFileWithProgress(oneUrl, zipOnDisk, (received, total) => {
+            const pct = total > 0 ? Math.min(99, Math.floor((received / total) * 100)) : 0;
+            const hint =
+              (hintBase ? `${hintBase} · ` : '') +
+              (total > 0
+                ? `${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} МБ`
+                : `${(received / 1048576).toFixed(1)} МБ`);
+            sendFivemInstallProgress({
+              phase: 'download',
+              percent: pct,
+              indeterminate: false,
+              label: 'Загрузка архива FiveM…',
+              hint
+            });
+          });
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (lastErr) {
+        throw lastErr;
+      }
     }
     sendFivemInstallProgress({
       phase: 'install',
@@ -2259,6 +2310,10 @@ ipcMain.handle('fivem:launch', async (_e, opts) => {
 });
 
 ipcMain.handle('fivem:findDefaultPath', async () => guessDefaultFiveMExePath());
+
+ipcMain.handle('fivem:isExePathValid', async (_e, exePath) => ({
+  ok: !!(exePath && isFileSafe(String(exePath).trim()))
+}));
 
 function pingStdoutToText(stdout, stderr) {
   const chunks = [];

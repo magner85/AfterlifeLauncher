@@ -1,6 +1,6 @@
 {
   "name": "afterlife-launcher",
-  "version": "1.0.0",
+  "version": "0.25.0",
   "description": "FiveM launcher — Afterlife Zombie server (single-file portable)",
   "main": "electron/main.js",
   "author": "",

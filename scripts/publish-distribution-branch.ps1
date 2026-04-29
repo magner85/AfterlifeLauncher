@@ -1,13 +1,15 @@
 # Публикация на GitHub ТОЛЬКО бинарников (без исходного кода).
-# Создаёт «чистую» историю ветки stable (и опционально fivem-bundle) через orphan commit.
+# Orphan-коммит перезаписывает ветку — после push на странице репозитория будут только README, launcher-version.json, exe и (если указан) FiveM.zip.
 #
-# ВАЖНО:
-# 1) На github.com в настройках репозитория смените Default branch на stable (если раньше был main).
-# 2) Убедитесь, что portable .exe и при необходимости FiveM.zip уже собраны (см. npm run dist, npm run pack-fivem).
-# 3) Файлы > ~100 МБ могут требовать Git LFS — при отказе push включите LFS для *.exe / *.zip.
+# ПОРЯДОК ДЕЙСТВИЙ:
+#  1) npm run dist  — собрать portable .exe
+#  2) npm run pack-fivem  — получить bundled-fivem\FiveM.zip (иначе игроки не смогут скачать клиент с GitHub)
+#  3) В package.json версия должна совпадать с -Version (её читает лаунчер для сравнения с launcher-version.json)
+#  4) Запустить этот скрипт с -Force. При первой чистке: сначала на github.com → Settings → сменить Default branch на ту же, что -BranchName (например stable), ПОТОМ -DeleteOtherRemoteBranches
+#  5) Убедиться, что git login (gh auth login или credential manager) работает для push
 #
 # Пример:
-#   .\scripts\publish-distribution-branch.ps1 -PortableExe "..\release\Afterlife Launcher-0.25.0-portable.exe" -FivemZip "..\bundled-fivem\FiveM.zip" -Version "0.25.0"
+#   .\scripts\publish-distribution-branch.ps1 -PortableExe ".\release\Afterlife Launcher-0.25.0-portable.exe" -FivemZip ".\bundled-fivem\FiveM.zip" -Version "0.25.0" -DeleteOtherRemoteBranches -Force
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
@@ -22,6 +24,8 @@ param(
 
   [string] $RemoteUrl = "https://github.com/magner85/AfterlifeLauncher.git",
 
+  [string] $BranchName = "stable",
+
   [switch] $AlsoPublishFivemBranch,
 
   [switch] $DeleteOtherRemoteBranches,
@@ -30,6 +34,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+  throw "Команда git не найдена в PATH. Установите Git for Windows и откройте новый терминал."
+}
 
 function Test-RealFile {
   param([string] $Path)
@@ -47,6 +55,10 @@ if ($FivemZip -and -not (Test-RealFile $FivemZip)) {
 $portableName = Split-Path -Leaf $PortableExe
 if ($portableName -notmatch '\.exe$') {
   throw "Ожидается .exe portable, получено: $portableName"
+}
+
+if (-not $FivemZip -or -not (Test-RealFile $FivemZip)) {
+  Write-Warning "Не указан рабочий -FivemZip. На GitHub не попадёт FiveM.zip — автоскачивание клиента в лаунчере даст 404, пока не запакуете архив (npm run pack-fivem) и не перезапустите скрипт с -FivemZip."
 }
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("al-dist-" + [Guid]::NewGuid().ToString("N"))
@@ -82,7 +94,8 @@ try {
     $addedFiles += "FiveM.zip"
   }
 
-  $dlExe = "https://github.com/magner85/AfterlifeLauncher/raw/stable/$portableName"
+  $encExe = [uri]::EscapeDataString($portableName) -replace '\+','%20'
+  $dlExe = "https://github.com/magner85/AfterlifeLauncher/raw/$BranchName/$encExe"
   $readme = @(
     '# Afterlife Launcher — сборки',
     '',
@@ -95,7 +108,7 @@ try {
   ) -join "`n"
 
   if ($FivemZip) {
-    $dlZip = 'https://github.com/magner85/AfterlifeLauncher/raw/stable/FiveM.zip'
+    $dlZip = "https://github.com/magner85/AfterlifeLauncher/raw/$BranchName/FiveM.zip"
     $readme += @(
       '## Клиент FiveM (архив)',
       '',
@@ -107,7 +120,7 @@ try {
   $readme += @(
     '---',
     '',
-    '*Ветка `stable` обновляется скриптом `publish-distribution-branch.ps1` локально; исходники на GitHub не публикуются.*'
+    "*Ветка ``$BranchName`` — только сборки; исходники в этот репозиторий не публикуются.*"
   ) -join "`n"
 
   Set-Content -LiteralPath (Join-Path $cloneDir "README.md") -Value $readme -Encoding UTF8
@@ -117,10 +130,10 @@ try {
   git commit -m "distribution: Afterlife Launcher $Version (portable only)"
   if ($LASTEXITCODE -ne 0) { throw "commit stable failed" }
 
-  git branch -M stable
-  if ($Force -or $PSCmdlet.ShouldProcess($RemoteUrl, "git push --force stable")) {
-    git push origin stable --force
-    if ($LASTEXITCODE -ne 0) { throw "git push stable failed" }
+  git branch -M $BranchName
+  if ($Force -or $PSCmdlet.ShouldProcess($RemoteUrl, "git push --force $BranchName")) {
+    git push origin $BranchName --force
+    if ($LASTEXITCODE -ne 0) { throw "git push $BranchName failed" }
   }
 
   # --- опционально: отдельная ветка только с FiveM.zip ---
@@ -145,14 +158,14 @@ try {
   }
 
   if ($DeleteOtherRemoteBranches) {
-    Write-Host "Удаление удалённых веток, кроме stable$(if ($AlsoPublishFivemBranch) { ' и fivem-bundle' })..."
+    Write-Host "Удаление удалённых веток, кроме $BranchName$(if ($AlsoPublishFivemBranch) { ' и fivem-bundle' })..."
     $heads = git ls-remote --heads origin
     foreach ($line in $heads) {
       if (-not $line) { continue }
       $ref = ($line -split '\s+')[1]
       if ($ref -notmatch 'refs/heads/(.+)$') { continue }
       $b = $Matches[1]
-      if ($b -eq 'stable') { continue }
+      if ($b -eq $BranchName) { continue }
       if ($b -eq 'fivem-bundle' -and $AlsoPublishFivemBranch) { continue }
       if ($Force -or $PSCmdlet.ShouldProcess($b, "git push --delete origin $b")) {
         git push origin --delete $b
@@ -160,7 +173,8 @@ try {
     }
   }
 
-  Write-Host "Готово. Ветка stable на GitHub содержит только: README.md, $($addedFiles -join ', ')."
+  Write-Host "Готово. Ветка $BranchName на GitHub: README.md, $($addedFiles -join ', ')."
+  Write-Host "Проверьте в браузере: $RemoteUrl (ветка $BranchName). Версия в package.json лаунчера и поле version в launcher-version.json должны совпадать с $Version."
 }
 finally {
   Pop-Location -ErrorAction SilentlyContinue
