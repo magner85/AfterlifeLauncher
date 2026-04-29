@@ -136,7 +136,8 @@ function getDefaultConfig() {
     /** Индекс узла vless:// после фильтрации и сортировки подписки (sing-box). */
     bypassVlessIndex: 0,
     /**
-     * URL ZIP с содержимым %LocalAppData%\\FiveM. Пустая строка — качать с релиза лаунчера (fivem-bundle/FiveM.zip).
+     * URL ZIP с содержимым %LocalAppData%\\FiveM. Пустая строка — raw.githubusercontent.com …/ветка/FiveM.zip
+     * (ветки updateBranch / fivemBundleBranch), иначе классический релиз fivem-bundle.
      * Локальный bundled-fivem/FiveM.zip всегда важнее URL.
      */
     fivemClientZipUrl: '',

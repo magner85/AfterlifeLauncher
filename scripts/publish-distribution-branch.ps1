@@ -69,6 +69,14 @@ try {
   Copy-Item -LiteralPath $PortableExe -Destination (Join-Path $cloneDir $portableName) -Force
   $addedFiles = @($portableName)
 
+  $manifestPath = Join-Path $cloneDir "launcher-version.json"
+  $manifestObj = [ordered]@{
+    version = $Version
+    file    = $portableName
+  }
+  $manifestObj | ConvertTo-Json -Compress | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+  $addedFiles += "launcher-version.json"
+
   if ($FivemZip) {
     Copy-Item -LiteralPath $FivemZip -Destination (Join-Path $cloneDir "FiveM.zip") -Force
     $addedFiles += "FiveM.zip"
@@ -104,7 +112,7 @@ try {
 
   Set-Content -LiteralPath (Join-Path $cloneDir "README.md") -Value $readme -Encoding UTF8
 
-  git add README.md $portableName
+  git add README.md launcher-version.json $portableName
   if ($FivemZip) { git add "FiveM.zip" }
   git commit -m "distribution: Afterlife Launcher $Version (portable only)"
   if ($LASTEXITCODE -ne 0) { throw "commit stable failed" }
