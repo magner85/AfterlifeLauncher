@@ -9,6 +9,17 @@ contextBridge.exposeInMainWorld('launcher', {
   close: () => ipcRenderer.send('window:close'),
   launchFiveM: (opts) => ipcRenderer.invoke('fivem:launch', opts),
   findFiveMPath: () => ipcRenderer.invoke('fivem:findDefaultPath'),
+  downloadInstallFiveM: () => ipcRenderer.invoke('fivem:downloadInstall'),
+  onFivemInstallProgress: (listener) => {
+    if (typeof listener !== 'function') return () => {};
+    const handler = (_e, payload) => {
+      try {
+        listener(payload);
+      } catch (_) {}
+    };
+    ipcRenderer.on('fivem-install-progress', handler);
+    return () => ipcRenderer.removeListener('fivem-install-progress', handler);
+  },
   ping: (host) => ipcRenderer.invoke('net:ping', host),
   getServerStatus: (connectHost) => ipcRenderer.invoke('server:status', connectHost),
   fetchVpnSubscription: (url) => ipcRenderer.invoke('subscription:fetch', url),

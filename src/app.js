@@ -1357,6 +1357,52 @@ html, body {
     el.removeAttribute('title');
   }
 
+  function setFivemProgressVisible(visible, payload) {
+    const prog = $('#fivemProgress');
+    if (!prog) return;
+    const fill = $('#fivemProgressFill');
+    const label = $('#fivemProgressLabel');
+    const hint = $('#fivemProgressHint');
+    const bar = prog.querySelector('.fivem-progress__bar');
+    prog.hidden = !visible;
+    if (!visible) {
+      prog.removeAttribute('data-indeterminate');
+      if (fill) {
+        fill.style.width = '0%';
+        fill.style.marginLeft = '0';
+      }
+      if (bar) bar.setAttribute('aria-valuenow', '0');
+      renderRoutingLine();
+      return;
+    }
+    if (payload && payload.indeterminate) prog.setAttribute('data-indeterminate', 'true');
+    else prog.removeAttribute('data-indeterminate');
+    if (label && payload && payload.label != null) label.textContent = payload.label;
+    if (hint && payload && payload.hint != null) hint.textContent = payload.hint;
+    if (fill) {
+      if (payload && payload.indeterminate) {
+        fill.style.width = '';
+        fill.style.marginLeft = '';
+      } else if (payload && typeof payload.percent === 'number') {
+        fill.style.marginLeft = '';
+        fill.style.width = `${Math.max(0, Math.min(100, payload.percent))}%`;
+      }
+    }
+    if (bar && payload && typeof payload.percent === 'number') {
+      bar.setAttribute('aria-valuenow', String(Math.max(0, Math.min(100, payload.percent))));
+    }
+    renderRoutingLine();
+  }
+
+  function applyFivemInstallProgressPayload(p) {
+    if (!p) return;
+    if (p.phase === 'done' || p.phase === 'error') {
+      setFivemProgressVisible(false);
+      return;
+    }
+    setFivemProgressVisible(true, p);
+  }
+
   /**
    * Короткая строка статуса; tip — расширенная подсказка.
    * displayState: 'ok' | 'err' | 'warn' | 'idle' | 'busy' — иначе от isErr.
@@ -1850,12 +1896,28 @@ html, body {
       await ensureFivemPathInConfig();
       let fivemExePath = getFivemExePath();
       if (!fivemExePath) {
-        const go = await showAlConfirm(
-          'Клиент FiveM не найден. Открыть официальный сайт для загрузки и установки?',
-          { title: 'Загрузить FiveM', kind: 'info', okLabel: 'Открыть fivem.net', cancelLabel: 'Отмена' }
-        );
-        if (go) window.launcher.openExternal('https://fivem.net');
-        return;
+        if (typeof window.launcher.downloadInstallFiveM !== 'function') {
+          void showAlAlert('Автоустановка FiveM недоступна в этой сборке.', { title: 'FiveM', kind: 'error' });
+          return;
+        }
+        const inst = await window.launcher.downloadInstallFiveM();
+        await loadConfig();
+        await refreshPlayDockButton();
+        if (!inst || !inst.ok) {
+          void showAlAlert(
+            (inst && inst.error) || 'Не удалось скачать или установить FiveM.',
+            { title: 'FiveM', kind: 'error' }
+          );
+          return;
+        }
+        fivemExePath = getFivemExePath();
+        if (!fivemExePath) {
+          void showAlAlert('Путь к FiveM не записан в конфиг. Нажмите «Играть» ещё раз.', {
+            title: 'FiveM',
+            kind: 'warning'
+          });
+          return;
+        }
       }
       const connectArg = getConnectHost();
       await savePartial({ fivemExePath, serverConnect: connectArg });
@@ -1949,6 +2011,12 @@ html, body {
         if (config && config.embedActive) kickEmbedGuestLoad();
         else kickPlaceholderWebview();
       });
+    });
+  }
+
+  if (typeof window.launcher.onFivemInstallProgress === 'function') {
+    window.launcher.onFivemInstallProgress((payload) => {
+      applyFivemInstallProgressPayload(payload);
     });
   }
 

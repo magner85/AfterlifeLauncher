@@ -1,3 +1,6 @@
 node_modules/
 release/
 *.log
+
+# Локальный клиент FiveM для сборки portable (см. npm run pack-fivem)
+bundled-fivem/FiveM.zip

@@ -14,7 +14,8 @@
     "pack": "npm run sync:alpha:pack && electron-builder --dir",
     "dist": "npm run sync:alpha:dist && electron-builder --win portable",
     "dist:installer": "npm run sync:alpha:installer && electron-builder --win nsis",
-    "dist:portable-fast": "npm run sync:alpha:dist && electron-builder --win dir"
+    "dist:portable-fast": "npm run sync:alpha:dist && electron-builder --win dir",
+    "pack-fivem": "node scripts/pack-fivem-zip.js"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -55,6 +56,11 @@
       {
         "from": "launcher.config.json",
         "to": "launcher.config.default.json"
+      },
+      {
+        "from": "bundled-fivem",
+        "to": "bundled-fivem",
+        "filter": ["**/*"]
       }
     ],
     "win": {

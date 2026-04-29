@@ -699,6 +699,22 @@ body::before {
   transition: width 0.35s var(--ease);
 }
 
+/* Фаза «установщик работает» — неизвестный процент, полоса «ездит» внутри бара. */
+.fivem-progress[data-indeterminate='true'] .fivem-progress__fill {
+  width: 38% !important;
+  transition: none;
+  animation: fivem-progress-indet 1.15s ease-in-out infinite alternate;
+}
+
+@keyframes fivem-progress-indet {
+  from {
+    margin-left: 0;
+  }
+  to {
+    margin-left: 62%;
+  }
+}
+
 /* Как у pill «Игроки / Пинг»: одна обводка, без цветных рамок по состоянию */
 .routing-status-line {
   margin: 0;
