@@ -33,6 +33,9 @@
   "bypassVlessIndex": 0,
   "fivemClientZipUrl": "",
   "updateRepo": "",
+  "updateAssetName": "Afterlife Launcher-portable.exe",
   "updateBranch": "stable",
-  "updateAssetName": "Afterlife Launcher-portable.exe"
+  "updateVersionManifest": "launcher-version.json",
+  "fivemBundleBranch": "",
+  "updateAutoCheck": true
 }

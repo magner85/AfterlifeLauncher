@@ -288,7 +288,7 @@ function defaultFivemZipUrlFromConfig(cfg) {
     return 'https://github.com/magner85/AfterlifeLauncher/releases/download/fivem-bundle/FiveM.zip';
   }
   const branch = String(cfg.fivemBundleBranch || cfg.updateBranch || 'stable').trim() || 'stable';
-  return rawGithubFileUrl(repo.owner, repo.repo, branch, FIVEM_BUNDLE_ZIP_NAME);
+  return rawGithubFileUrl(repo.owner, repo.repo, branch, 'FiveM.zip');
 }
 
 function sendLauncherSelfUpdateProgress(payload) {
