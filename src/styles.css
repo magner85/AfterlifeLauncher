@@ -1034,6 +1034,14 @@ body::before {
   flex: 1;
 }
 
+/* В нижней строке дока — «Сервер:» и имя строго в одну линию (перебивает flex-wrap выше). */
+.server-title-main.server-title-main--dock {
+  flex-wrap: nowrap;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  gap: 5px;
+}
+
 .server-title-prefix {
   font-size: 0.68rem;
   text-transform: uppercase;

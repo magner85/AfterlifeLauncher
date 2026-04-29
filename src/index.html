@@ -61,22 +61,7 @@
         </section>
 
         <div class="main-dock glass">
-          <div class="dock-bar" role="toolbar" aria-label="Сервер, ссылки и запуск">
-            <div class="dock-server server-card server-card--dock" id="serverCard">
-              <div class="server-dock-inline">
-                <div class="server-title-main server-title-main--dock">
-                  <span class="server-title-prefix">Сервер:</span>
-                  <span class="server-name" id="serverName">—</span>
-                </div>
-                <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
-                  <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
-                </button>
-                <span class="pill pill--server pill--dock" id="serverPlayers">Игроки: —</span>
-                <span class="pill pill--server pill--dock" id="serverPing">Пинг: —</span>
-                <span class="server-badge server-badge--inline server-badge--dock" id="serverBadge" data-state="loading">Проверка…</span>
-              </div>
-            </div>
-
+          <div class="dock-bar" role="toolbar" aria-label="Ссылки, сервер и запуск">
             <div class="dock-widgets-row">
               <button type="button" class="widget-btn" id="wSite" title="Сайт проекта">
                 <img class="widget-btn__icon" src="assets/titlebar-logo.png" alt="" width="40" height="40" />
@@ -90,6 +75,21 @@
               <button type="button" class="widget-btn" id="wBugReport" title="Сообщить о баге">
                 <img class="widget-btn__icon" src="assets/bug.png" alt="" width="40" height="40" />
               </button>
+            </div>
+
+            <div class="dock-server server-card server-card--dock" id="serverCard">
+              <div class="server-dock-inline">
+                <div class="server-title-main server-title-main--dock">
+                  <span class="server-title-prefix">Сервер:</span>
+                  <span class="server-name" id="serverName">—</span>
+                </div>
+                <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
+                  <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
+                </button>
+                <span class="pill pill--server pill--dock" id="serverPlayers">Игроки: —</span>
+                <span class="pill pill--server pill--dock" id="serverPing">Пинг: —</span>
+                <span class="server-badge server-badge--inline server-badge--dock" id="serverBadge" data-state="loading">Проверка…</span>
+              </div>
             </div>
 
             <div class="dock-launch__track" id="dockLaunchTrack">
