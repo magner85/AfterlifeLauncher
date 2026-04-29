@@ -38,82 +38,7 @@
 
       <div class="body-row" id="bodyRow">
         <div class="main-grid">
-        <aside class="side-panel">
-          <div class="card glass server-card" id="serverCard">
-            <div class="server-title-row">
-              <div class="server-title-main">
-                <span class="server-title-prefix">Сервер:</span>
-                <span class="server-name" id="serverName">—</span>
-              </div>
-              <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
-                <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
-              </button>
-            </div>
-            <div class="server-stats-row">
-              <span class="pill pill--server" id="serverPlayers">Игроки: —</span>
-              <span class="pill pill--server" id="serverPing">Пинг: —</span>
-              <span class="server-badge server-badge--inline" id="serverBadge" data-state="loading">Проверка…</span>
-            </div>
-          </div>
-
-          <div class="card glass actions-card">
-            <div class="card-label">Запуск</div>
-            <div class="launch-row">
-              <button type="button" class="btn btn-primary btn-glow" id="btnPlay">
-                <span class="btn-play-icon"></span>
-                ИГРАТЬ
-              </button>
-            </div>
-            <label class="field">
-              <span>FiveM.exe</span>
-              <div class="row-input">
-                <input type="text" id="inputFivemPath" placeholder="%LocalAppData%\FiveM\FiveM.exe" spellcheck="false" />
-                <button type="button" class="btn btn-ghost" id="btnAutoFivem">Найти</button>
-              </div>
-            </label>
-            <button type="button" class="btn btn-secondary btn-block" id="btnFivemDownload">
-              Установка / обновление FiveM (официальный сайт)
-            </button>
-          </div>
-
-          <div class="card glass user-network-card" id="userNetworkCard">
-            <div class="user-network-card__top">
-              <div class="card-label">Сеть</div>
-              <button type="button" class="btn btn-primary btn-repair-network" id="btnRepairNetwork">
-                Починить сеть
-              </button>
-              <label class="field field--repair-tunnel">
-                <input type="checkbox" id="chkRepairTunnel" />
-                <span>Использовать туннелирование (хуже пинг)</span>
-              </label>
-            </div>
-            <div class="user-network-info-box" id="userNetworkInfoBox" aria-label="Статус сети" role="status">
-              <p class="user-network-status" id="userRepairStatus" data-state="idle"></p>
-            </div>
-          </div>
-
-          <div class="card glass side-social-card">
-            <div class="card-label">Ссылки</div>
-            <div class="side-social-widgets">
-              <button type="button" class="widget-btn" id="wSite" title="Сайт проекта">
-                <img class="widget-btn__icon" src="assets/titlebar-logo.png" alt="" width="40" height="40" />
-              </button>
-              <button type="button" class="widget-btn" id="wDiscord" title="Discord">
-                <img class="widget-btn__icon" src="assets/ds.png" alt="" width="40" height="40" />
-              </button>
-              <button type="button" class="widget-btn" id="wVk" title="ВКонтакте">
-                <img class="widget-btn__icon" src="assets/vk.png" alt="" width="40" height="40" />
-              </button>
-              <button type="button" class="widget-btn" id="wBugReport" title="Сообщить о баге">
-                <img class="widget-btn__icon" src="assets/bug.png" alt="" width="40" height="40" />
-              </button>
-              <button type="button" class="widget-btn" id="wRknMode" title="Проверка сети и обхода">
-                <img class="widget-btn__icon" src="assets/rkn.png" alt="" width="40" height="40" />
-              </button>
-            </div>
-          </div>
-        </aside>
-
+        <div class="main-stack">
         <section class="center-panel">
           <div class="webview-wrap glass webview-wrap--placeholder" id="embedPanel">
             <div class="native-news-panel" id="nativeNewsPanel" role="region" aria-label="Новости">
@@ -134,15 +59,88 @@
             ></webview>
           </div>
         </section>
+
+        <div class="main-dock glass">
+          <div class="dock-server server-card server-card--dock" id="serverCard">
+            <div class="server-title-row">
+              <div class="server-title-main">
+                <span class="server-title-prefix">Сервер:</span>
+                <span class="server-name" id="serverName">—</span>
+              </div>
+              <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
+                <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
+              </button>
+            </div>
+            <div class="server-stats-row">
+              <span class="pill pill--server" id="serverPlayers">Игроки: —</span>
+              <span class="pill pill--server" id="serverPing">Пинг: —</span>
+              <span class="server-badge server-badge--inline" id="serverBadge" data-state="loading">Проверка…</span>
+            </div>
+          </div>
+
+          <div class="dock-widgets-row">
+            <button type="button" class="widget-btn" id="wSite" title="Сайт проекта">
+              <img class="widget-btn__icon" src="assets/titlebar-logo.png" alt="" width="40" height="40" />
+            </button>
+            <button type="button" class="widget-btn" id="wDiscord" title="Discord">
+              <img class="widget-btn__icon" src="assets/ds.png" alt="" width="40" height="40" />
+            </button>
+            <button type="button" class="widget-btn" id="wVk" title="ВКонтакте">
+              <img class="widget-btn__icon" src="assets/vk.png" alt="" width="40" height="40" />
+            </button>
+            <button type="button" class="widget-btn" id="wBugReport" title="Сообщить о баге">
+              <img class="widget-btn__icon" src="assets/bug.png" alt="" width="40" height="40" />
+            </button>
+          </div>
+
+          <div class="dock-launch-row">
+            <div class="dock-launch__track" id="dockLaunchTrack">
+              <div class="fivem-progress" id="fivemProgress" hidden>
+                <div class="fivem-progress__meta">
+                  <span class="fivem-progress__label" id="fivemProgressLabel">Загрузка FiveM…</span>
+                  <span class="fivem-progress__hint" id="fivemProgressHint"></span>
+                </div>
+                <div class="fivem-progress__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <div class="fivem-progress__fill" id="fivemProgressFill" style="width:0%"></div>
+                </div>
+              </div>
+              <p class="routing-status-line" id="routingStatusLine" data-state="idle" role="status" title="">
+                Обход не используется
+              </p>
+            </div>
+            <button type="button" class="btn btn-check-updates" id="btnCheckUpdates" title="Проверить обновления лаунчера">
+              <span class="btn-check-updates__arrows" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M7 5V15M7 15L3 11M7 15L11 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M17 19V9M17 9L13 13M17 9L21 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="btn-check-updates__label">Обновить</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-glow btn-play-dock" id="btnPlay">
+              <span class="btn-play-icon"></span>
+              ИГРАТЬ
+            </button>
+            <button type="button" class="widget-btn widget-btn--rkn" id="wRknMode" title="Починить сеть (Zapret / TUN)">
+              <img class="widget-btn__icon" src="assets/rkn.png" alt="" width="40" height="40" />
+            </button>
+          </div>
+        </div>
+        </div>
         </div>
 
         <aside class="bypass-panel glass" id="bypassPanel" aria-hidden="true">
         <div class="bypass-inner">
           <h2 class="bypass-title">Режим разработчика</h2>
           <p class="bypass-desc">
-            Узел sing-box и проверка сети. Запуск и остановка обхода — в блоке «Сеть» слева. Подписка и пути к sing-box — в
+            Узел sing-box и проверка сети. Запуск и остановка обхода — виджетом RKN внизу. Подписка и пути к sing-box — в
             <code>launcher.config.json</code>.
           </p>
+
+          <label class="field field--bypass-dev-tunnel">
+            <input type="checkbox" id="chkRepairTunnel" />
+            <span>Починка сети: TUN (sing-box) вместо Zapret</span>
+          </label>
 
           <div class="bypass-tools">
             <div class="bypass-tools-heading">Обход (sing-box)</div>

@@ -505,28 +505,6 @@ html, body {
     setDevMode(true);
   }
 
-  const REPAIR_UI_LS = 'afterlife_repair_card_visible';
-
-  function getRepairCardWantedVisible() {
-    try {
-      const v = localStorage.getItem(REPAIR_UI_LS);
-      if (v === '0' || v === 'false') return false;
-    } catch (_) {}
-    return true;
-  }
-
-  function setRepairCardWantedVisible(visible) {
-    const on = !!visible;
-    try {
-      localStorage.setItem(REPAIR_UI_LS, on ? '1' : '0');
-    } catch (_) {}
-    appEl.dataset.repairUi = on ? 'on' : 'off';
-  }
-
-  function syncRepairCardUiFromStorage() {
-    appEl.dataset.repairUi = getRepairCardWantedVisible() ? 'on' : 'off';
-  }
-
   function isTypingInLauncherField(target) {
     if (!target || target.nodeType !== 1) return false;
     const tag = target.tagName;
@@ -535,13 +513,6 @@ html, body {
     if (target.closest && target.closest('#devPinGate')) return true;
     return false;
   }
-
-  function toggleRepairCardFromSecret() {
-    if (isDevMode()) return;
-    setRepairCardWantedVisible(!getRepairCardWantedVisible());
-  }
-
-  syncRepairCardUiFromStorage();
 
   function log(line, cls) {
     if (!bypassLog) return;
@@ -703,9 +674,36 @@ html, body {
     return !!(r && r.ok && r.value === 'ok');
   }
 
+  function getFivemExePath() {
+    return (config && String(config.fivemExePath || '').trim()) || '';
+  }
+
+  async function ensureFivemPathInConfig() {
+    let p = getFivemExePath();
+    if (p) return p;
+    try {
+      const found = await window.launcher.findFiveMPath();
+      if (found) {
+        await savePartial({ fivemExePath: found });
+        return String(found).trim();
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  async function refreshPlayDockButton() {
+    await ensureFivemPathInConfig();
+    const btn = $('#btnPlay');
+    if (!btn) return;
+    const has = !!getFivemExePath();
+    btn.dataset.mode = has ? 'play' : 'download';
+    btn.innerHTML = has
+      ? '<span class="btn-play-icon"></span>ИГРАТЬ'
+      : '<span class="btn-play-icon"></span>ЗАГРУЗИТЬ';
+  }
+
   async function loadConfig() {
     config = await window.launcher.getConfig();
-    $('#inputFivemPath').value = config.fivemExePath || '';
     const chkEmbed = $('#chkEmbedActive');
     if (chkEmbed) chkEmbed.checked = !!config.embedActive;
     const chkRepairTunnel = $('#chkRepairTunnel');
@@ -718,6 +716,7 @@ html, body {
     }
     refreshPingDomainPreview();
     await syncEmbedPanelView();
+    void refreshPlayDockButton();
   }
 
   async function clearEmbedGuestStyles() {
@@ -1295,32 +1294,54 @@ html, body {
     window.launcher.setWindowSizeAnimated(w, h, 380);
   }
 
-  const REPAIR_STATUS_PLACEHOLDER =
-    'Здесь появятся сообщения о починке сети, sing-box и Zapret. Нажмите «Починить сеть», когда нужно.';
+  let repairFeedbackOverride = null;
 
-  /** Короткая строка в карточке «Сеть»; tip — полный текст во всплывающей подсказке. */
-  function setUserRepairFeedback(text, isErr, tip) {
-    const el = $('#userRepairStatus');
+  /** Строка под новостями: прогресс FiveM или тип обхода / сообщение починки. */
+  function renderRoutingLine() {
+    const el = $('#routingStatusLine');
     if (!el) return;
-    if (!text) {
-      el.textContent = REPAIR_STATUS_PLACEHOLDER;
-      el.dataset.state = 'idle';
+    const prog = $('#fivemProgress');
+    if (prog && !prog.hidden) return;
+    if (repairFeedbackOverride) {
+      el.textContent = repairFeedbackOverride.text;
+      el.dataset.state = repairFeedbackOverride.isErr ? 'err' : 'ok';
+      if (repairFeedbackOverride.tip) el.setAttribute('title', repairFeedbackOverride.tip);
+      else el.removeAttribute('title');
+      return;
+    }
+    if (clientRepairActive) {
+      el.textContent = clientRepairWasTunnel ? 'Обход: VPN (sing-box TUN)' : 'Обход: Zapret';
+      el.dataset.state = 'ok';
       el.removeAttribute('title');
       return;
     }
-    el.textContent = text;
-    el.dataset.state = isErr ? 'err' : 'ok';
-    if (tip) el.setAttribute('title', tip);
-    else el.removeAttribute('title');
+    el.textContent = 'Обход не используется';
+    el.dataset.state = 'idle';
+    el.removeAttribute('title');
+  }
+
+  /** Короткая строка статуса; tip — полный текст во всплывающей подсказке. */
+  function setUserRepairFeedback(text, isErr, tip) {
+    if (!text) {
+      repairFeedbackOverride = null;
+      renderRoutingLine();
+      return;
+    }
+    repairFeedbackOverride = { text, isErr: !!isErr, tip: tip || '' };
+    renderRoutingLine();
   }
 
   function setRepairNetworkButtonUi(active, wasTunnel) {
     clientRepairActive = !!active;
     clientRepairWasTunnel = !!wasTunnel;
-    const b = $('#btnRepairNetwork');
+    const wRkn = $('#wRknMode');
     const chk = $('#chkRepairTunnel');
-    if (b) b.textContent = active ? REPAIR_BACK : REPAIR_IDLE;
+    if (wRkn) {
+      wRkn.classList.toggle('is-active', !!active);
+      wRkn.title = active ? REPAIR_BACK : 'Починить сеть (Zapret / TUN)';
+    }
     if (chk) chk.disabled = !!active;
+    renderRoutingLine();
   }
 
   async function revertClientRepair() {
@@ -1498,11 +1519,10 @@ html, body {
 
   /** Тот же сценарий, что раньше у «VPN (TUN) из подписки»: sing-box по подписке из конфига. */
   async function startTunnelFromSubscriptionWithFeedback() {
-    const st = $('#userRepairStatus');
     const info = await window.launcher.getSystemInfo();
     if (info.platform === 'win32' && !info.isElevated) {
       await showAlAlert(
-        'Для системного TUN нужны права администратора. Нажмите внизу «Перезапустить как администратор», затем снова «Починить сеть».',
+        'Для системного TUN нужны права администратора. Нажмите внизу «Перезапустить как администратор», затем снова виджет RKN.',
         { title: 'Требуются права администратора', kind: 'warning' }
       );
       return false;
@@ -1511,23 +1531,15 @@ html, body {
     if (!r.ok) {
       const err = r.error || 'Ошибка туннеля';
       const short = err.length > 76 ? `${err.slice(0, 74)}…` : err;
-      if (st) {
-        setUserRepairFeedback(short, true, err);
-      } else {
-        void showAlAlert(err, { title: 'Ошибка туннеля', kind: 'error' });
-      }
+      setUserRepairFeedback(short, true, err);
       return false;
     }
     const pid = r.pid != null ? r.pid : '—';
-    if (st) {
-      setUserRepairFeedback(
-        `TUN вкл., PID ${pid}. Стоп: «Возврат».`,
-        false,
-        'Остановка sing-box: «Возврат» в блоке «Сеть» или панель «ОБХОД» → «Остановить туннель».'
-      );
-    } else {
-      void showAlAlert(`sing-box запущен, PID ${pid}`, { title: 'Обход включён', kind: 'info' });
-    }
+    setUserRepairFeedback(
+      `TUN вкл., PID ${pid}. Стоп: «Возврат» (виджет RKN).`,
+      false,
+      'Остановка sing-box: «Возврат» на виджете RKN или панель «ОБХОД».'
+    );
     return true;
   }
 
@@ -1548,19 +1560,9 @@ html, body {
   $('#wBugReport')?.addEventListener('click', () =>
     window.launcher.openExternal((config && config.discordUrl) || DEFAULT_DISCORD_URL)
   );
-  $('#wRknMode')?.addEventListener('click', () => {
-    const btn = $('#btnRepairNetwork');
-    if (btn) btn.click();
-  });
-
   window.addEventListener(
     'keydown',
     (e) => {
-      if (e.ctrlKey && e.shiftKey && e.altKey && e.code === 'KeyR' && !isTypingInLauncherField(e.target)) {
-        e.preventDefault();
-        toggleRepairCardFromSecret();
-        return;
-      }
       const pinGate = $('#devPinGate');
       if (pinGate && !pinGate.hidden && e.key === 'Escape') {
         e.preventDefault();
@@ -1593,11 +1595,11 @@ html, body {
     }
   });
 
-  $('#btnRepairNetwork').addEventListener('click', async () => {
-    const btn = $('#btnRepairNetwork');
+  $('#wRknMode')?.addEventListener('click', async () => {
+    const btn = $('#wRknMode');
     const chkRepairTunnel = $('#chkRepairTunnel');
     const useTunnel = !!(chkRepairTunnel && chkRepairTunnel.checked);
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
     if (bypassLog) bypassLog.textContent = '';
     try {
       if (clientRepairActive) {
@@ -1620,11 +1622,10 @@ html, body {
         const ok = await startTunnelFromSubscriptionWithFeedback();
         if (ok) setRepairNetworkButtonUi(true, true);
       } else {
-        const st = $('#userRepairStatus');
         const info = await window.launcher.getSystemInfo();
         if (info.platform === 'win32' && !info.isElevated) {
           await showAlAlert(
-            'Для установки Zapret нужны права администратора. Нажмите «Перезапустить как администратор», затем снова «Починить сеть».',
+            'Для установки Zapret нужны права администратора. Нажмите «Перезапустить как администратор», затем снова виджет RKN.',
             { title: 'Требуются права администратора', kind: 'warning' }
           );
           return;
@@ -1633,24 +1634,18 @@ html, body {
         if (!r.ok) {
           const err = r.error || 'Ошибка Zapret';
           const short = err.length > 76 ? `${err.slice(0, 74)}…` : err;
-          if (st) {
-            setUserRepairFeedback(short, true, err);
-          } else {
-            void showAlAlert(err, { title: 'Ошибка Zapret', kind: 'error' });
-          }
+          setUserRepairFeedback(short, true, err);
         } else {
-          if (st) {
-            setUserRepairFeedback(
-              'Zapret: служба установлена.',
-              false,
-              'General ALT9, автообновления и игровой фильтр включены.'
-            );
-          }
+          setUserRepairFeedback(
+            'Zapret: служба установлена.',
+            false,
+            'General ALT9, автообновления и игровой фильтр включены.'
+          );
           setRepairNetworkButtonUi(true, false);
         }
       }
     } finally {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   });
 
@@ -1695,14 +1690,6 @@ html, body {
   });
 
 
-  $('#btnAutoFivem').addEventListener('click', async () => {
-    const p = await window.launcher.findFiveMPath();
-    if (p) {
-      $('#inputFivemPath').value = p;
-      await savePartial({ fivemExePath: p });
-    }
-  });
-
   /** Discord обязателен для входа на сервер — без него бот верификации не пропустит. Спрашиваем ДО запуска FiveM. */
   async function ensureDiscordRunningOrAsk() {
     try {
@@ -1743,7 +1730,16 @@ html, body {
     const btn = $('#btnPlay');
     if (btn) btn.disabled = true;
     try {
-      const fivemExePath = $('#inputFivemPath').value.trim();
+      await ensureFivemPathInConfig();
+      let fivemExePath = getFivemExePath();
+      if (!fivemExePath) {
+        const go = await showAlConfirm(
+          'Клиент FiveM не найден. Открыть официальный сайт для загрузки и установки?',
+          { title: 'Загрузить FiveM', kind: 'info', okLabel: 'Открыть fivem.net', cancelLabel: 'Отмена' }
+        );
+        if (go) window.launcher.openExternal('https://fivem.net');
+        return;
+      }
       const connectArg = getConnectHost();
       await savePartial({ fivemExePath, serverConnect: connectArg });
       if (!(await ensureDiscordRunningOrAsk())) return;
@@ -1761,17 +1757,16 @@ html, body {
     }
   });
 
-  let fivemPathDebounce;
-  $('#inputFivemPath').addEventListener('input', () => {
-    clearTimeout(fivemPathDebounce);
-    fivemPathDebounce = setTimeout(() => {
-      const v = $('#inputFivemPath').value.trim();
-      void savePartial({ fivemExePath: v });
-    }, 450);
-  });
-
-  $('#btnFivemDownload').addEventListener('click', () => {
-    window.launcher.openExternal('https://fivem.net');
+  $('#btnCheckUpdates')?.addEventListener('click', async () => {
+    const b = $('#btnCheckUpdates');
+    if (b) b.classList.add('is-loading');
+    try {
+      window.launcher.openExternal('https://github.com/magner85/AfterlifeLauncher/releases');
+    } finally {
+      setTimeout(() => {
+        if (b) b.classList.remove('is-loading');
+      }, 500);
+    }
   });
 
   $('#btnReloadEmbed').addEventListener('click', () => {
@@ -1856,6 +1851,7 @@ html, body {
       appEl.dataset.bypass = 'closed';
     }
     setUserRepairFeedback('', false);
+    renderRoutingLine();
     refreshServerUi();
     refreshElevationUi();
     statusTimer = setInterval(refreshServerUi, 30000);

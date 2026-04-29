@@ -1113,17 +1113,30 @@ ipcMain.handle('app:restartElevated', async () => {
   if (process.platform !== 'win32') {
     return { ok: false, error: 'Повышение прав доступно только в Windows' };
   }
-  const exe = process.execPath;
-  const cwd = getLauncherDir();
+  /** Для portable важно запускать исходный .exe, а не распакованный app-рантайм из Temp. */
+  const portableExe = String(process.env.PORTABLE_EXECUTABLE_FILE || '').trim();
+  const portableDir = String(process.env.PORTABLE_EXECUTABLE_DIR || '').trim();
+  const exe = portableExe && fs.existsSync(portableExe) ? portableExe : process.execPath;
+  const cwd = portableDir && fs.existsSync(portableDir) ? portableDir : path.dirname(exe);
+  const psEsc = (s) => String(s).replace(/'/g, "''");
+  const args = process.argv.slice(1).map((a) => `'${psEsc(a)}'`).join(', ');
   try {
-    const cmd = `Start-Process -LiteralPath ${JSON.stringify(exe)} -WorkingDirectory ${JSON.stringify(cwd)} -Verb RunAs`;
-    const child = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', cmd], {
-      detached: true,
+    const cmd =
+      args.length > 0
+        ? `Start-Process -LiteralPath '${psEsc(exe)}' -WorkingDirectory '${psEsc(cwd)}' -Verb RunAs -ArgumentList @(${args})`
+        : `Start-Process -LiteralPath '${psEsc(exe)}' -WorkingDirectory '${psEsc(cwd)}' -Verb RunAs`;
+    const psPath = path.join(
+      process.env.SystemRoot || 'C:\\Windows',
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe'
+    );
+    execFileSync(psPath, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd], {
+      windowsHide: true,
       stdio: 'ignore',
-      windowsHide: true
+      timeout: 20000
     });
-    child.on('error', () => {});
-    child.unref();
     setTimeout(() => {
       try {
         isLauncherQuitting = true;

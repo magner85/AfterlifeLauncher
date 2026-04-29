@@ -30,8 +30,8 @@
   "vpnSubscriptionUrl": "https://connect.sigmavpn.online/access?token=mFu9CtrKnouG8u8dg0mTELvcORbGFiWh",
   "vpnAutoImportMaxUris": 12,
   "tunnelSingBoxPath": "sing-box.exe",
+  "bypassVlessIndex": 0,
   "updateRepo": "",
   "updateBranch": "stable",
-  "updateAssetName": "Afterlife Launcher-portable.exe",
-  "bypassVlessIndex": 0
+  "updateAssetName": "Afterlife Launcher-portable.exe"
 }

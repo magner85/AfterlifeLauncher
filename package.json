@@ -13,7 +13,8 @@
     "start": "npm run sync:alpha:start && electron .",
     "pack": "npm run sync:alpha:pack && electron-builder --dir",
     "dist": "npm run sync:alpha:dist && electron-builder --win portable",
-    "dist:installer": "npm run sync:alpha:installer && electron-builder --win nsis"
+    "dist:installer": "npm run sync:alpha:installer && electron-builder --win nsis",
+    "dist:portable-fast": "npm run sync:alpha:dist && electron-builder --win dir"
   },
   "devDependencies": {
     "electron": "^33.2.0",
