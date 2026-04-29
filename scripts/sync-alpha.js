@@ -43,12 +43,14 @@ function runGit(args, options = {}) {
       : {}),
     ...(options.env || {})
   };
-  return execFileSync(gitBin, args, {
+  const out = execFileSync(gitBin, args, {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     env,
     ...options
-  }).trim();
+  });
+  if (typeof out === 'string') return out.trim();
+  return '';
 }
 
 function safeRunGit(args, fallback = '') {
