@@ -6,10 +6,14 @@
   "author": "",
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder --win portable",
-    "dist:installer": "electron-builder --win nsis"
+    "sync:alpha:start": "node scripts/sync-alpha.js --mode=start",
+    "sync:alpha:pack": "node scripts/sync-alpha.js --mode=pack",
+    "sync:alpha:dist": "node scripts/sync-alpha.js --mode=dist",
+    "sync:alpha:installer": "node scripts/sync-alpha.js --mode=dist-installer",
+    "start": "npm run sync:alpha:start && electron .",
+    "pack": "npm run sync:alpha:pack && electron-builder --dir",
+    "dist": "npm run sync:alpha:dist && electron-builder --win portable",
+    "dist:installer": "npm run sync:alpha:installer && electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^33.2.0",

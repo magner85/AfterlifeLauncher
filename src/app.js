@@ -1545,6 +1545,13 @@ html, body {
     window.launcher.openExternal((config && config.discordUrl) || DEFAULT_DISCORD_URL)
   );
   $('#wVk').addEventListener('click', () => window.launcher.openExternal(config.vkUrl || 'https://vk.com'));
+  $('#wBugReport')?.addEventListener('click', () =>
+    window.launcher.openExternal((config && config.discordUrl) || DEFAULT_DISCORD_URL)
+  );
+  $('#wRknMode')?.addEventListener('click', () => {
+    const btn = $('#btnRepairNetwork');
+    if (btn) btn.click();
+  });
 
   window.addEventListener(
     'keydown',
