@@ -1673,9 +1673,9 @@ function tcpConnectLatencyMs(host, port, timeoutMs = 4500) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     const sock = net.connect({ host: h, port: p, family: 0 }, () => {
-      const ms = Math.max(1, Math.round(Date.now() - t0));
+      const ms = Math.round(Date.now() - t0);
       sock.destroy();
-      resolve(ms);
+      resolve(Math.max(0, ms));
     });
     sock.setTimeout(timeoutMs);
     sock.on('timeout', () => {
@@ -1796,14 +1796,6 @@ ipcMain.handle('server:status', async (_e, connectHost) => {
     if (p) pingTarget = p.host;
   }
 
-  let pingMs = null;
-  let icmpOk = false;
-  if (pingTarget) {
-    const pr = await icmpPingHost(pingTarget);
-    icmpOk = pr.ok && pr.ms != null;
-    pingMs = pr.ms;
-  }
-
   const latencyHost = directHost || pingTarget;
   const latencyPort =
     directHost && directPort && directPort > 0
@@ -1811,9 +1803,22 @@ ipcMain.handle('server:status', async (_e, connectHost) => {
       : endpointParsed && endpointParsed.port > 0
         ? endpointParsed.port
         : 30120;
-  if (pingMs == null && latencyHost) {
-    const tms = await tcpConnectLatencyMs(latencyHost, latencyPort, 4500);
-    if (tms != null) pingMs = tms;
+
+  /** Пинг для UI: сначала TCP к игровому порту (как при входе в FiveM), ICMP — запасной вариант. */
+  let pingMs = null;
+  let icmpOk = false;
+  if (latencyHost && latencyPort > 0) {
+    const tTcp = await tcpConnectLatencyMs(latencyHost, latencyPort, 4500);
+    if (tTcp != null) pingMs = tTcp;
+  }
+  if (pingTarget) {
+    const pr = await icmpPingHost(pingTarget);
+    icmpOk = pr.ok && pr.ms != null;
+    if (pingMs == null && pr.ms != null) pingMs = pr.ms;
+  } else if (latencyHost && pingMs == null) {
+    const pr = await icmpPingHost(latencyHost);
+    icmpOk = pr.ok && pr.ms != null;
+    if (pr.ms != null) pingMs = pr.ms;
   }
 
   if (!apiOnline && directHost && directPort) {

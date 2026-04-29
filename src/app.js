@@ -1304,9 +1304,11 @@ html, body {
     if (prog && !prog.hidden) return;
     if (repairFeedbackOverride) {
       el.textContent = repairFeedbackOverride.text;
-      el.dataset.state = repairFeedbackOverride.isErr ? 'err' : 'ok';
-      if (repairFeedbackOverride.tip) el.setAttribute('title', repairFeedbackOverride.tip);
-      else el.removeAttribute('title');
+      const st =
+        repairFeedbackOverride.displayState ||
+        (repairFeedbackOverride.isErr ? 'err' : 'ok');
+      el.dataset.state = st;
+      el.setAttribute('title', repairFeedbackOverride.tip || repairFeedbackOverride.text);
       return;
     }
     if (clientRepairActive) {
@@ -1320,14 +1322,22 @@ html, body {
     el.removeAttribute('title');
   }
 
-  /** Короткая строка статуса; tip — полный текст во всплывающей подсказке. */
-  function setUserRepairFeedback(text, isErr, tip) {
+  /**
+   * Короткая строка статуса; tip — расширенная подсказка.
+   * displayState: 'ok' | 'err' | 'warn' | 'idle' | 'busy' — иначе от isErr.
+   */
+  function setUserRepairFeedback(text, isErr, tip, displayState) {
     if (!text) {
       repairFeedbackOverride = null;
       renderRoutingLine();
       return;
     }
-    repairFeedbackOverride = { text, isErr: !!isErr, tip: tip || '' };
+    repairFeedbackOverride = {
+      text,
+      isErr: !!isErr,
+      tip: tip || '',
+      displayState: displayState || null
+    };
     renderRoutingLine();
   }
 
@@ -1382,8 +1392,8 @@ html, body {
       badgeEl.dataset.state = 'unknown';
       badgeEl.textContent = 'Нет адреса';
       nameEl.textContent = '—';
-        playersEl.textContent = 'Игроки: —';
-      pingEl.textContent = 'Пинг: —';
+      playersEl.textContent = '— / —';
+      pingEl.textContent = '—';
         if (serverCard) {
           serverCard.title = 'В конфиге лаунчера не задан serverConnect';
         }
@@ -1397,10 +1407,10 @@ html, body {
 
     if (!st.ok) {
       badgeEl.dataset.state = 'offline';
-        badgeEl.textContent = 'Offline';
+      badgeEl.textContent = 'Offline';
       nameEl.textContent = '—';
-        playersEl.textContent = 'Игроки: —';
-      pingEl.textContent = 'Пинг: —';
+      playersEl.textContent = '— / —';
+      pingEl.textContent = '—';
         if (serverCard) {
           serverCard.title = st.error || 'Ошибка запроса';
         }
@@ -1411,9 +1421,14 @@ html, body {
 
     const c = st.clients != null ? st.clients : '—';
     const m = st.maxClients != null ? st.maxClients : '—';
-      playersEl.textContent = `Игроки: ${c} / ${m}`;
+    playersEl.textContent = `${c} / ${m}`;
 
-    pingEl.textContent = st.pingMs != null ? `Пинг: ${st.pingMs} мс` : 'Пинг: —';
+    if (st.pingMs != null) {
+      const pm = Number(st.pingMs);
+      pingEl.textContent = pm <= 0 ? '<1 мс' : `${pm} мс`;
+    } else {
+      pingEl.textContent = '—';
+    }
 
     if (st.reachable) {
       if (st.apiOnline && st.icmpOk) {
@@ -1609,13 +1624,18 @@ html, body {
           devBypassPowerOn = false;
         }
         setRepairNetworkButtonUi(false, false);
-        setUserRepairFeedback('Обход выключен.', false);
+        setUserRepairFeedback('Обход выключен.', false, '', 'idle');
         return;
       }
 
       setUserRepairFeedback('', false);
       if (!(await confirmNoConflictingBypass())) {
-        setUserRepairFeedback('Обход не запущен: активны сторонние средства.', false);
+        setUserRepairFeedback(
+          'Обход не запущен: активны сторонние средства.',
+          false,
+          '',
+          'warn'
+        );
         return;
       }
       if (useTunnel) {
