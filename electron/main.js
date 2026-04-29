@@ -242,6 +242,18 @@ function killTunnelProcess() {
   tunnelProcess = null;
 }
 
+/** Остановить всё, что поднял лаунчер (sing-box TUN + служба Zapret, если мы её ставили). */
+function cleanupOurBypassSync(reason) {
+  try {
+    killTunnelProcess();
+  } catch (_) {}
+  try {
+    if (launcherTouchedZapret) {
+      stopZapretServiceQuiet();
+    }
+  } catch (_) {}
+}
+
 function resolveSingBoxExe(cfg) {
   const custom = String(cfg?.tunnelSingBoxPath || '').trim();
   if (custom) {
@@ -451,13 +463,26 @@ function createWindow() {
 app.whenReady().then(createWindow);
 app.on('before-quit', () => {
   destroyTray();
-  killTunnelProcess();
-  if (launcherTouchedZapret) {
-    stopZapretServiceQuiet();
-    launcherTouchedZapret = false;
-  }
+  cleanupOurBypassSync('before-quit');
 });
 app.on('window-all-closed', () => app.quit());
+
+process.on('uncaughtException', (err) => {
+  console.error('[afterlife-launcher] uncaughtException', err);
+  try {
+    cleanupOurBypassSync('uncaughtException');
+  } catch (_) {}
+});
+process.on('SIGTERM', () => {
+  try {
+    cleanupOurBypassSync('SIGTERM');
+  } catch (_) {}
+});
+process.on('SIGINT', () => {
+  try {
+    cleanupOurBypassSync('SIGINT');
+  } catch (_) {}
+});
 
 /** file:// URL страницы-заглушки с site.jpg (для webview, когда embedActive = false). */
 function getEmbedPlaceholderPageUrl() {
@@ -946,33 +971,81 @@ const BYPASS_PROCESS_SIGNATURES = [
   { match: 'pritunl', label: 'Pritunl' }
 ];
 
-function detectBypassProcessesWindows() {
-  const found = new Map();
+/** Строки tasklist /FO CSV: образ и PID (без ложных срабатываний по подстроке во всём выводе). */
+function windowsTasklistExeRows() {
+  const rows = [];
   try {
     const out = execFileSync('tasklist', ['/FO', 'CSV', '/NH'], {
       windowsHide: true,
-      timeout: 6000,
+      timeout: 8000,
       stdio: ['ignore', 'pipe', 'pipe']
-    }).toString('latin1').toLowerCase();
-    for (const sig of BYPASS_PROCESS_SIGNATURES) {
-      if (out.includes(sig.match)) {
-        if (!found.has(sig.label)) found.set(sig.label, sig.label);
+    }).toString('latin1');
+    for (const line of out.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const parts = line.split('","');
+      if (parts.length < 2) continue;
+      const image = parts[0].replace(/^"/, '').replace(/""/g, '"').trim();
+      const pidStr = parts[1].replace(/^"/, '').replace(/"$/, '').trim();
+      const pid = parseInt(pidStr, 10);
+      if (!/\.exe$/i.test(image) || !Number.isFinite(pid) || pid <= 0) continue;
+      rows.push({ image, pid });
+    }
+  } catch {}
+  return rows;
+}
+
+function bypassImageBaseMatch(baseLower, rawMatch) {
+  const m = String(rawMatch || '')
+    .toLowerCase()
+    .replace(/\.exe$/i, '')
+    .trim();
+  if (!m || !baseLower) return false;
+  /** WireGuard tunnel.exe — только имя tunnel, иначе ловим TunnelBear и т.п. */
+  if (m === 'tunnel' || String(rawMatch).toLowerCase() === 'tunnel.exe') return baseLower === 'tunnel';
+  if (baseLower === m) return true;
+  if (baseLower.startsWith(`${m}-`) || baseLower.startsWith(`${m}_`)) return true;
+  const norm = baseLower.replace(/\s+/g, '');
+  const mn = m.replace(/\s+/g, '');
+  if (mn.length <= 4) return norm === mn || norm.startsWith(`${mn}-`);
+  return norm.startsWith(mn) || norm.includes(mn);
+}
+
+/**
+ * Процессы обхода: только по имени образа из tasklist.
+ * @param {Set<number>} excludePids — не трогать (наш sing-box).
+ */
+function detectBypassProcessesWindows(excludePids) {
+  const ex = excludePids instanceof Set ? excludePids : new Set();
+  const found = [];
+  const seenPid = new Set();
+  try {
+    for (const row of windowsTasklistExeRows()) {
+      if (ex.has(row.pid)) continue;
+      const base = row.image.replace(/\.exe$/i, '').toLowerCase();
+      for (const sig of BYPASS_PROCESS_SIGNATURES) {
+        if (bypassImageBaseMatch(base, sig.match)) {
+          if (!seenPid.has(row.pid)) {
+            seenPid.add(row.pid);
+            found.push({ label: sig.label, pid: row.pid, image: row.image });
+          }
+          break;
+        }
       }
     }
   } catch {}
-  /** Самого себя не считаем — sing-box из лаунчера не в счёт, он бы упал первым. */
-  return Array.from(found.values());
+  return found;
 }
 
+/** Запущенные сторонние службы обхода — с реальным SERVICE_NAME для net stop. */
 function detectBypassServicesWindows() {
   const services = [];
+  const seen = new Set();
   try {
     const out = execFileSync('sc', ['query', 'state=', 'all'], {
       windowsHide: true,
       timeout: 6000,
       stdio: ['ignore', 'pipe', 'pipe']
     }).toString('latin1');
-    /** Службы обычно: ZeroTierOneService, TailscaleUserTSD, WireGuardTunnel$*, AmneziaVPN, zapret. */
     const sections = out.split(/\r?\n\r?\n/);
     for (const sec of sections) {
       const nameM = sec.match(/SERVICE_NAME:\s*([^\r\n]+)/i);
@@ -982,16 +1055,30 @@ function detectBypassServicesWindows() {
       const state = stateM[1].toLowerCase();
       if (state !== 'running') continue;
       const lower = name.toLowerCase();
-      if (/zapret/.test(lower)) services.push('Zapret (служба)');
-      else if (/wireguardtunnel/.test(lower)) services.push('WireGuard (туннель)');
-      else if (/zerotier/.test(lower)) services.push('ZeroTier');
-      else if (/tailscale/.test(lower)) services.push('Tailscale');
-      else if (/amnezia/.test(lower)) services.push('Amnezia');
-      else if (/openvpnservice/.test(lower)) services.push('OpenVPN');
-      else if (/nordvpn|expressvpn|protonvpn|mullvad|cyberghost|windscribe/.test(lower)) services.push(name);
+      let label = '';
+      if (/zapret/.test(lower)) label = 'Zapret (служба)';
+      else if (/wireguardtunnel/.test(lower)) label = 'WireGuard (туннель)';
+      else if (/zerotier/.test(lower)) label = 'ZeroTier';
+      else if (/tailscale/.test(lower)) label = 'Tailscale';
+      else if (/amnezia/.test(lower)) label = 'Amnezia';
+      else if (/openvpnservice/.test(lower)) label = 'OpenVPN';
+      else if (/nordvpn|expressvpn|protonvpn|mullvad|cyberghost|windscribe/.test(lower)) label = name;
+      else continue;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      services.push({ serviceName: name, label });
     }
   } catch {}
-  return Array.from(new Set(services));
+  return services;
+}
+
+function stopWindowsServiceQuiet(serviceName) {
+  if (!serviceName || process.platform !== 'win32') return;
+  const sn = String(serviceName).trim();
+  if (!sn) return;
+  try {
+    execFileSync('net', ['stop', sn], { windowsHide: true, timeout: 45000, stdio: 'ignore' });
+  } catch (_) {}
 }
 
 function detectSystemProxyWindows() {
@@ -1095,22 +1182,113 @@ ipcMain.handle('system:openDiscord', async () => {
   }
 });
 
+function getTunnelPidExcludeSet() {
+  const ex = new Set();
+  try {
+    if (tunnelProcess && !tunnelProcess.killed && tunnelProcess.pid) ex.add(tunnelProcess.pid);
+  } catch (_) {}
+  return ex;
+}
+
+function tcpConnectProbe(host, port, timeoutMs) {
+  const ms = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 4500;
+  return new Promise((resolve) => {
+    let settled = false;
+    let sock = null;
+    let t = null;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      try {
+        if (t) clearTimeout(t);
+      } catch (_) {}
+      try {
+        if (sock) sock.destroy();
+      } catch (_) {}
+      resolve(ok);
+    };
+    sock = net.createConnection({ host, port: port || 443 }, () => finish(true));
+    t = setTimeout(() => finish(false), ms);
+    sock.on('error', () => finish(false));
+  });
+}
+
+/** Сначала целевые узлы FiveM / Discord (TCP 443), без HTTP. */
+ipcMain.handle('routing:probeDiscordFiveM', async () => {
+  if (process.platform !== 'win32') {
+    return { ok: false, cfx443: false, discord443: false, allOk: false };
+  }
+  const [cfx443, discord443] = await Promise.all([
+    tcpConnectProbe('cfx.re', 443, 5000),
+    tcpConnectProbe('discord.com', 443, 5000)
+  ]);
+  const allOk = !!(cfx443 && discord443);
+  return { ok: true, cfx443, discord443, allOk };
+});
+
+ipcMain.handle('bypass:killUserBypass', async () => {
+  if (process.platform !== 'win32') {
+    return { ok: true, killedPids: [], stoppedServices: [] };
+  }
+  const ex = getTunnelPidExcludeSet();
+  const procs = detectBypassProcessesWindows(ex);
+  const killedPids = [];
+  for (const p of procs) {
+    const pid = p && p.pid;
+    if (!Number.isFinite(pid) || pid <= 0 || ex.has(pid)) continue;
+    try {
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        windowsHide: true,
+        timeout: 15000,
+        stdio: 'ignore'
+      });
+      killedPids.push(pid);
+    } catch (_) {}
+  }
+  const svcList = detectBypassServicesWindows();
+  const stoppedServices = [];
+  for (const s of svcList) {
+    const sn = s && s.serviceName;
+    if (!sn) continue;
+    /** Не трогаем zapret-службу, если её поднял лаунчер — её снимет revert. */
+    if (/zapret/i.test(sn) && launcherTouchedZapret) continue;
+    stopWindowsServiceQuiet(sn);
+    stoppedServices.push(sn);
+  }
+  return { ok: true, killedPids, stoppedServices };
+});
+
 ipcMain.handle('system:detectBypassTools', async () => {
   if (process.platform !== 'win32') {
-    return { found: false, items: [] };
+    return { found: false, conflict: false, items: [] };
   }
+  const ex = getTunnelPidExcludeSet();
   const items = [];
-  const proc = detectBypassProcessesWindows();
-  proc.forEach((p) => items.push({ kind: 'process', label: p }));
+  const proc = detectBypassProcessesWindows(ex);
+  proc.forEach((p) =>
+    items.push({
+      kind: 'process',
+      label: `${p.label} (${p.image}, PID ${p.pid})`,
+      pid: p.pid
+    })
+  );
   const svc = detectBypassServicesWindows();
-  svc.forEach((s) => items.push({ kind: 'service', label: s }));
+  svc.forEach((s) =>
+    items.push({
+      kind: 'service',
+      label: s.label,
+      serviceName: s.serviceName
+    })
+  );
   const proxy = detectSystemProxyWindows();
   if (proxy) {
     items.push({ kind: 'proxy', label: `Системный прокси: ${proxy.server || 'включён'}` });
   }
   const tun = detectTunAdaptersWindows();
   tun.forEach((t) => items.push({ kind: 'adapter', label: `Виртуальный адаптер: ${t}` }));
-  return { found: items.length > 0, items };
+  const conflict =
+    items.some((it) => it.kind === 'process') || items.some((it) => it.kind === 'service');
+  return { found: items.length > 0, conflict, items };
 });
 
 ipcMain.handle('app:restartElevated', async () => {

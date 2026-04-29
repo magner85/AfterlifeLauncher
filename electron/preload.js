@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('launcher', {
   getTunnelStatus: () => ipcRenderer.invoke('tunnel:status'),
   getSystemInfo: () => ipcRenderer.invoke('system:getInfo'),
   detectBypassTools: () => ipcRenderer.invoke('system:detectBypassTools'),
+  probeDiscordFiveM: () => ipcRenderer.invoke('routing:probeDiscordFiveM'),
+  killUserBypass: () => ipcRenderer.invoke('bypass:killUserBypass'),
   checkDiscord: () => ipcRenderer.invoke('system:checkDiscord'),
   openDiscord: () => ipcRenderer.invoke('system:openDiscord'),
   restartElevated: () => ipcRenderer.invoke('app:restartElevated'),

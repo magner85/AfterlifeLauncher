@@ -636,7 +636,13 @@ html, body {
         if (b.primary) btn.classList.add('al-modal__btn--primary');
         if (b.danger) btn.classList.add('al-modal__btn--danger');
         btn.textContent = String(b.label || 'OK');
-        btn.addEventListener('click', () => closeAlModal({ ok: true, value: b.value ?? b.label, primary: !!b.primary }));
+        btn.addEventListener('click', () =>
+          closeAlModal({
+            ok: b.cancel === true ? false : true,
+            value: b.value ?? b.label,
+            primary: !!b.primary
+          })
+        );
         alModalActions.appendChild(btn);
       });
     }
@@ -1539,25 +1545,48 @@ html, body {
     return { ok, total: domains.length };
   }
 
-  /** Перед включением обхода смотрим, что пользователь уже запустил у себя (прокси, VPN, DPI-обход, виртуальные адаптеры). */
-  async function confirmNoConflictingBypass() {
+  /**
+   * Модалка только при реальном конфликте (процессы/службы), не из‑за одного прокси в реестре.
+   * @returns {'proceed'|'abort'}
+   */
+  async function resolveBypassConflictIfNeeded() {
     try {
-      if (typeof window.launcher.detectBypassTools !== 'function') return true;
-      const r = await window.launcher.detectBypassTools();
-      if (!r || !r.found || !Array.isArray(r.items) || !r.items.length) return true;
-      return await showAlConfirm(
-        'Одновременный запуск встроенного обхода с этими инструментами может конфликтовать: двойная маршрутизация, пропадание интернета, сбой DNS. Рекомендуется выключить внешние средства перед стартом.',
-        {
-          title: 'Уже включён внешний VPN / обход',
-          kind: 'warning',
-          items: r.items.map((it) => it.label),
-          okLabel: 'Всё равно продолжить',
-          cancelLabel: 'Отмена',
-          danger: true
-        }
-      );
+      if (typeof window.launcher.detectBypassTools !== 'function') return 'proceed';
+      const det = await window.launcher.detectBypassTools();
+      if (!det || !det.conflict || !Array.isArray(det.items) || !det.items.length) return 'proceed';
+      const conflictLines = det.items
+        .filter((it) => it.kind === 'process' || it.kind === 'service')
+        .map((it) => String(it.label || '').trim())
+        .filter(Boolean);
+      if (!conflictLines.length) return 'proceed';
+      const choice = await showAlModal({
+        kind: 'warning',
+        title: 'Обнаружен внешний обход',
+        message:
+          'Запущены VPN, DPI-обход или связанные службы. Параллельно с нашим обходом возможны конфликты маршрутизации и DNS. Выберите действие.',
+        items: conflictLines,
+        buttons: [
+          { value: 'dismiss', label: 'Ничего не делать', cancel: true },
+          { value: 'replace', label: 'Закрыть чужие обходы и запустить наш', primary: true },
+          { value: 'layer', label: 'Не закрывать чужие, запустить наш поверх', danger: true }
+        ]
+      });
+      if (
+        !choice ||
+        choice.ok === false ||
+        choice.value === 'dismiss' ||
+        choice.value === 'backdrop' ||
+        choice.value === 'escape' ||
+        choice.value === 'superseded'
+      ) {
+        return 'abort';
+      }
+      if (choice.value === 'replace' && typeof window.launcher.killUserBypass === 'function') {
+        await window.launcher.killUserBypass();
+      }
+      return 'proceed';
     } catch (_) {
-      return true;
+      return 'proceed';
     }
   }
 
@@ -1640,7 +1669,7 @@ html, body {
   $('#wRknMode')?.addEventListener('click', async () => {
     const btn = $('#wRknMode');
     const chkRepairTunnel = $('#chkRepairTunnel');
-    const useTunnel = !!(chkRepairTunnel && chkRepairTunnel.checked);
+    const useTunnelOnly = !!(chkRepairTunnel && chkRepairTunnel.checked);
     if (btn) btn.disabled = true;
     if (bypassLog) bypassLog.textContent = '';
     try {
@@ -1656,41 +1685,82 @@ html, body {
       }
 
       setUserRepairFeedback('', false);
-      if (!(await confirmNoConflictingBypass())) {
-        setUserRepairFeedback(
-          'Обход не запущен: активны сторонние средства.',
-          false,
-          '',
-          'warn'
-        );
-        return;
-      }
-      if (useTunnel) {
-        const ok = await startTunnelFromSubscriptionWithFeedback();
-        if (ok) setRepairNetworkButtonUi(true, true);
-      } else {
-        const info = await window.launcher.getSystemInfo();
-        if (info.platform === 'win32' && !info.isElevated) {
-          await showAlAlert(
-            'Для установки Zapret нужны права администратора. Нажмите «Перезапустить как администратор», затем снова виджет RKN.',
-            { title: 'Требуются права администратора', kind: 'warning' }
+      if (typeof window.launcher.probeDiscordFiveM === 'function') {
+        const pre = await window.launcher.probeDiscordFiveM();
+        if (pre && pre.allOk) {
+          setUserRepairFeedback(
+            'Discord и cfx.re уже доступны (TCP 443). Отдельный обход не требуется.',
+            false,
+            '',
+            'ok'
           );
           return;
         }
-        const r = await window.launcher.repairInstallZapret();
-        if (!r.ok) {
-          const err = r.error || 'Ошибка Zapret';
-          const short = err.length > 76 ? `${err.slice(0, 74)}…` : err;
-          setUserRepairFeedback(short, true, err);
-        } else {
-          setUserRepairFeedback(
-            'Zapret: служба установлена.',
-            false,
-            'General ALT9, автообновления и игровой фильтр включены.'
-          );
-          setRepairNetworkButtonUi(true, false);
-        }
       }
+
+      const resolution = await resolveBypassConflictIfNeeded();
+      if (resolution === 'abort') {
+        setUserRepairFeedback('Обход не запущен.', false, '', 'warn');
+        return;
+      }
+
+      const info = await window.launcher.getSystemInfo();
+      if (info.platform === 'win32' && !info.isElevated) {
+        await showAlAlert(
+          'Для установки Zapret и системного TUN нужны права администратора. Нажмите «Перезапустить как администратор», затем снова виджет RKN.',
+          { title: 'Требуются права администратора', kind: 'warning' }
+        );
+        return;
+      }
+
+      if (useTunnelOnly) {
+        const ok = await startTunnelFromSubscriptionWithFeedback();
+        if (ok) setRepairNetworkButtonUi(true, true);
+        return;
+      }
+
+      const r = await window.launcher.repairInstallZapret();
+      if (!r.ok) {
+        const err = r.error || 'Ошибка Zapret';
+        const short = err.length > 76 ? `${err.slice(0, 74)}…` : err;
+        setUserRepairFeedback(short, true, err);
+        const tunOk = await startTunnelFromSubscriptionWithFeedback();
+        if (tunOk) setRepairNetworkButtonUi(true, true);
+        return;
+      }
+
+      setUserRepairFeedback('Zapret: ожидание и проверка Discord / cfx.re…', false, '', 'busy');
+      await new Promise((res) => setTimeout(res, 2500));
+      let afterOk = false;
+      for (let i = 0; i < 3; i++) {
+        const probe = await window.launcher.probeDiscordFiveM();
+        if (probe && probe.allOk) {
+          afterOk = true;
+          break;
+        }
+        await new Promise((res) => setTimeout(res, 2000));
+      }
+      if (afterOk) {
+        setUserRepairFeedback(
+          'Zapret: служба активна, Discord и cfx.re отвечают.',
+          false,
+          'General ALT9, автообновления и игровой фильтр включены.'
+        );
+        setRepairNetworkButtonUi(true, false);
+        return;
+      }
+
+      const tunOk = await startTunnelFromSubscriptionWithFeedback();
+      if (tunOk) {
+        setRepairNetworkButtonUi(true, true);
+        return;
+      }
+      setUserRepairFeedback(
+        'Zapret установлен, но узлы всё ещё недоступны; TUN не удалось запустить.',
+        true,
+        'Проверьте подписку в launcher.config.json и sing-box.',
+        'err'
+      );
     } finally {
       if (btn) btn.disabled = false;
     }

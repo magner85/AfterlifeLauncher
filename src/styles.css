@@ -816,6 +816,72 @@ body::before {
   border-width: 8px 0 8px 14px;
 }
 
+/**
+ * Кнопки «Обновить» / «Играть» в доке — плоский вид как у иконок-виджетов:
+ * без подложки, без box-shadow и без «дыхания» на hover.
+ */
+.dock-bar .btn-check-updates,
+.dock-bar .btn-play-dock.btn-primary {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  filter: none;
+  border-radius: 0 !important;
+  transition:
+    transform 0.2s var(--ease),
+    opacity 0.2s,
+    color 0.2s;
+}
+
+.dock-bar .btn-glow {
+  animation: none;
+}
+
+.dock-bar .btn-check-updates:hover,
+.dock-bar .btn-check-updates:focus-visible,
+.dock-bar .btn-play-dock.btn-primary:hover,
+.dock-bar .btn-play-dock.btn-primary:focus-visible {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: scale(1.06);
+  opacity: 0.92;
+}
+
+.dock-bar .btn-check-updates:hover,
+.dock-bar .btn-check-updates:focus-visible {
+  color: #fff;
+}
+
+.dock-bar .btn-play-dock.btn-primary {
+  color: var(--accent-bright);
+}
+
+.dock-bar .btn-play-dock.btn-primary:hover,
+.dock-bar .btn-play-dock.btn-primary:focus-visible {
+  color: var(--accent-bright);
+}
+
+.dock-bar .btn-play-dock .btn-play-icon {
+  border-color: transparent transparent transparent currentColor;
+}
+
+.dock-bar .btn-check-updates__arrows {
+  filter: none;
+}
+
+.dock-bar .btn-check-updates:active,
+.dock-bar .btn-play-dock.btn-primary:active {
+  transform: scale(0.96);
+  opacity: 1;
+}
+
+.dock-bar .btn-check-updates:focus-visible,
+.dock-bar .btn-play-dock.btn-primary:focus-visible {
+  outline: 2px solid var(--inv-accent);
+  outline-offset: 3px;
+}
+
 .widget-btn--rkn {
   flex: 0 0 auto;
   width: 52px;
