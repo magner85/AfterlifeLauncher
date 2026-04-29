@@ -42,6 +42,18 @@ contextBridge.exposeInMainWorld('launcher', {
     ipcRenderer.invoke('window:setSizeAnimated', width, height, durationMs),
   getWindowSize: () => ipcRenderer.invoke('window:getSize'),
   getEmbedPlaceholderUrl: () => ipcRenderer.invoke('assets:getEmbedPlaceholderUrl'),
+  checkSelfUpdate: () => ipcRenderer.invoke('launcher:checkSelfUpdate'),
+  applySelfUpdate: (downloadUrl) => ipcRenderer.invoke('launcher:applySelfUpdate', downloadUrl),
+  onLauncherSelfUpdateProgress: (listener) => {
+    if (typeof listener !== 'function') return () => {};
+    const handler = (_e, payload) => {
+      try {
+        listener(payload);
+      } catch (_) {}
+    };
+    ipcRenderer.on('launcher-self-update-progress', handler);
+    return () => ipcRenderer.removeListener('launcher-self-update-progress', handler);
+  },
   /** Снять подписку: вернённая функция. */
   onWindowShown: (listener) => {
     const wrapped = () => {

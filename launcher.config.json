@@ -1,5 +1,4 @@
 {
-  "fivemClientZipUrl": "",
   "fivemExePath": "C:\\Users\\magne\\AppData\\Local\\FiveM\\FiveM.exe",
   "serverConnect": "45.136.205.9:30120",
   "projectUrl": "https://afterlifedayz.ru",
@@ -32,6 +31,7 @@
   "vpnAutoImportMaxUris": 12,
   "tunnelSingBoxPath": "sing-box.exe",
   "bypassVlessIndex": 0,
+  "fivemClientZipUrl": "",
   "updateRepo": "",
   "updateBranch": "stable",
   "updateAssetName": "Afterlife Launcher-portable.exe"

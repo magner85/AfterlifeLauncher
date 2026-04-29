@@ -710,6 +710,109 @@ html, body {
       : '<span class="btn-play-icon"></span>ЗАГРУЗИТЬ';
   }
 
+  /**
+   * Проверка релиза на GitHub и установка portable exe (без ручной загрузки в браузере).
+   * @param {boolean} isManual — с кнопки; иначе тихое предложение при старте.
+   * @param {object} [precomputed] — уже полученный результат checkSelfUpdate (без второго запроса).
+   */
+  async function runLauncherSelfUpdateCheck(isManual, precomputed) {
+    if (typeof window.launcher.checkSelfUpdate !== 'function') {
+      if (isManual) {
+        void showAlAlert('Проверка обновлений недоступна в этой сборке.', { title: 'Обновление', kind: 'warning' });
+      }
+      return;
+    }
+    const btn = $('#btnCheckUpdates');
+    let r = precomputed;
+    if (!r) {
+      if (isManual && btn) btn.classList.add('is-loading');
+      try {
+        r = await window.launcher.checkSelfUpdate();
+      } catch (e) {
+        r = { ok: false, error: String(e.message || e) };
+      } finally {
+        if (isManual && btn) setTimeout(() => btn.classList.remove('is-loading'), 380);
+      }
+    }
+    if (!r || !r.ok) {
+      if (isManual) {
+        void showAlAlert(r?.error || 'Не удалось связаться с GitHub.', { title: 'Обновление', kind: 'error' });
+      }
+      return;
+    }
+    if (r.devMode) {
+      if (isManual) {
+        void showAlAlert(
+          'Запуск из исходников: соберите portable — тогда лаунчер сможет подтягивать exe с GitHub сам.',
+          { title: 'Обновление', kind: 'info' }
+        );
+      }
+      return;
+    }
+    if (!r.needsUpdate) {
+      if (isManual) {
+        void showAlAlert(`У вас актуальная версия: ${r.currentVersion}.`, { title: 'Обновление', kind: 'info' });
+      }
+      return;
+    }
+    const rawNotes = typeof r.body === 'string' ? r.body : '';
+    const notesShort = rawNotes
+      ? `\n\n${rawNotes.slice(0, 360)}${rawNotes.length > 360 ? '…' : ''}`
+      : '';
+    const message = `Доступна версия ${r.latestVersion} (сейчас ${r.currentVersion}). Скачать и установить?${notesShort}`;
+    const choice = await showAlModal({
+      kind: 'warning',
+      title: 'Обновление лаунчера',
+      message,
+      buttons: isManual
+        ? [
+            { value: 'cancel', label: 'Отмена', cancel: true },
+            { value: 'install', label: 'Скачать и установить', primary: true }
+          ]
+        : [
+            { value: 'later', label: 'Позже', cancel: true },
+            { value: 'install', label: 'Установить', primary: true }
+          ]
+    });
+    if (!choice || choice.value !== 'install') {
+      if (!isManual && r.latestVersion) {
+        try {
+          sessionStorage.setItem('al_update_dismissed', String(r.latestVersion));
+        } catch (_) {}
+      }
+      return;
+    }
+    if (typeof window.launcher.applySelfUpdate !== 'function') return;
+    try {
+      const ar = await window.launcher.applySelfUpdate(r.downloadUrl);
+      if (!ar || !ar.ok) {
+        void showAlAlert(ar?.error || 'Не удалось применить обновление.', { title: 'Обновление', kind: 'error' });
+      }
+    } catch (e) {
+      void showAlAlert(String(e.message || e), { title: 'Обновление', kind: 'error' });
+    }
+  }
+
+  function scheduleLauncherAutoUpdateCheck() {
+    if (!config || config.updateAutoCheck === false) return;
+    setTimeout(() => {
+      void (async () => {
+        let r;
+        try {
+          if (typeof window.launcher.checkSelfUpdate !== 'function') return;
+          r = await window.launcher.checkSelfUpdate();
+        } catch {
+          return;
+        }
+        if (!r || !r.ok || !r.needsUpdate || r.devMode) return;
+        try {
+          if (sessionStorage.getItem('al_update_dismissed') === String(r.latestVersion)) return;
+        } catch (_) {}
+        await runLauncherSelfUpdateCheck(false, r);
+      })();
+    }, 4500);
+  }
+
   async function loadConfig() {
     config = await window.launcher.getConfig();
     const chkEmbed = $('#chkEmbedActive');
@@ -1662,6 +1765,73 @@ html, body {
     return true;
   }
 
+  /** Zapret / TUN после подтверждения в модалке проверки сети. */
+  async function runRknRepairAfterProbe(useTunnelOnly) {
+    const resolution = await resolveBypassConflictIfNeeded();
+    if (resolution === 'abort') {
+      setUserRepairFeedback('Обход не запущен.', false, '', 'warn');
+      return;
+    }
+
+    const info = await window.launcher.getSystemInfo();
+    if (info.platform === 'win32' && !info.isElevated) {
+      await showAlAlert(
+        'Для установки Zapret и системного TUN нужны права администратора. Нажмите «Перезапустить как администратор», затем снова виджет RKN.',
+        { title: 'Требуются права администратора', kind: 'warning' }
+      );
+      return;
+    }
+
+    if (useTunnelOnly) {
+      const ok = await startTunnelFromSubscriptionWithFeedback();
+      if (ok) setRepairNetworkButtonUi(true, true);
+      return;
+    }
+
+    const r = await window.launcher.repairInstallZapret();
+    if (!r.ok) {
+      const err = r.error || 'Ошибка Zapret';
+      const short = err.length > 76 ? `${err.slice(0, 74)}…` : err;
+      setUserRepairFeedback(short, true, err);
+      const tunOk = await startTunnelFromSubscriptionWithFeedback();
+      if (tunOk) setRepairNetworkButtonUi(true, true);
+      return;
+    }
+
+    setUserRepairFeedback('Zapret: ожидание и проверка сайта / Discord / cfx.re…', false, '', 'busy');
+    await new Promise((res) => setTimeout(res, 2500));
+    let afterOk = false;
+    for (let i = 0; i < 3; i++) {
+      const probe = await window.launcher.probeDiscordFiveM();
+      if (probe && probe.allOk) {
+        afterOk = true;
+        break;
+      }
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+    if (afterOk) {
+      setUserRepairFeedback(
+        'Zapret: служба активна; сайт, Discord и cfx.re отвечают (TCP 443).',
+        false,
+        'General ALT9, автообновления и игровой фильтр включены.'
+      );
+      setRepairNetworkButtonUi(true, false);
+      return;
+    }
+
+    const tunOk = await startTunnelFromSubscriptionWithFeedback();
+    if (tunOk) {
+      setRepairNetworkButtonUi(true, true);
+      return;
+    }
+    setUserRepairFeedback(
+      'Zapret установлен, но узлы всё ещё недоступны; TUN не удалось запустить.',
+      true,
+      'Проверьте подписку в launcher.config.json и sing-box.',
+      'err'
+    );
+  }
+
   // Titlebar
   $('#btnMin').addEventListener('click', () => window.launcher.minimize());
   $('#btnMax').addEventListener('click', () => window.launcher.maximize());
@@ -1731,82 +1901,63 @@ html, body {
       }
 
       setUserRepairFeedback('', false);
-      if (typeof window.launcher.probeDiscordFiveM === 'function') {
-        const pre = await window.launcher.probeDiscordFiveM();
-        if (pre && pre.allOk) {
-          setUserRepairFeedback(
-            'Discord и cfx.re уже доступны (TCP 443). Отдельный обход не требуется.',
-            false,
-            '',
-            'ok'
-          );
-          return;
+      let pre = null;
+      try {
+        if (typeof window.launcher.probeDiscordFiveM === 'function') {
+          pre = await window.launcher.probeDiscordFiveM();
         }
+      } catch (_) {}
+
+      let detailMsg;
+      let allOk = false;
+      if (!pre) {
+        detailMsg = 'Проверка TCP не выполнена — нет ответа от лаунчера.';
+      } else {
+        const siteLine = pre.siteHost
+          ? `${pre.siteHost} (443): ${pre.site443 ? 'OK' : 'нет соединения'}`
+          : 'Сайт: в конфиге не задан (embedUrl / projectUrl)';
+        detailMsg = [
+          siteLine,
+          `cfx.re (443): ${pre.cfx443 ? 'OK' : 'нет соединения'}`,
+          `discord.com (443): ${pre.discord443 ? 'OK' : 'нет соединения'}`
+        ].join('\n');
+        allOk = !!pre.allOk;
       }
 
-      const resolution = await resolveBypassConflictIfNeeded();
-      if (resolution === 'abort') {
-        setUserRepairFeedback('Обход не запущен.', false, '', 'warn');
+      if (allOk) {
+        await showAlModal({
+          kind: 'info',
+          title: 'Проверка сети',
+          message:
+            'Все проверки TCP 443 прошли успешно. Отдельный обход не обязателен.\n\n' + detailMsg,
+          buttons: [{ value: 'close', label: 'Закрыть', primary: true }]
+        });
         return;
       }
 
-      const info = await window.launcher.getSystemInfo();
-      if (info.platform === 'win32' && !info.isElevated) {
-        await showAlAlert(
-          'Для установки Zapret и системного TUN нужны права администратора. Нажмите «Перезапустить как администратор», затем снова виджет RKN.',
-          { title: 'Требуются права администратора', kind: 'warning' }
-        );
-        return;
-      }
+      const choice = await showAlModal({
+        kind: 'warning',
+        title: 'Проверка сети',
+        message:
+          'Сайт или сервисы недоступны по TCP 443 (см. ниже). Можно попробовать обход Zapret / TUN.\n\n' +
+          detailMsg,
+        buttons: [
+          { value: 'close', label: 'Закрыть', cancel: true },
+          { value: 'repair', label: 'Починить сеть', primary: true }
+        ]
+      });
 
-      if (useTunnelOnly) {
-        const ok = await startTunnelFromSubscriptionWithFeedback();
-        if (ok) setRepairNetworkButtonUi(true, true);
-        return;
-      }
-
-      const r = await window.launcher.repairInstallZapret();
-      if (!r.ok) {
-        const err = r.error || 'Ошибка Zapret';
-        const short = err.length > 76 ? `${err.slice(0, 74)}…` : err;
-        setUserRepairFeedback(short, true, err);
-        const tunOk = await startTunnelFromSubscriptionWithFeedback();
-        if (tunOk) setRepairNetworkButtonUi(true, true);
-        return;
-      }
-
-      setUserRepairFeedback('Zapret: ожидание и проверка Discord / cfx.re…', false, '', 'busy');
-      await new Promise((res) => setTimeout(res, 2500));
-      let afterOk = false;
-      for (let i = 0; i < 3; i++) {
-        const probe = await window.launcher.probeDiscordFiveM();
-        if (probe && probe.allOk) {
-          afterOk = true;
-          break;
-        }
-        await new Promise((res) => setTimeout(res, 2000));
-      }
-      if (afterOk) {
+      if (!choice || !choice.ok || choice.value !== 'repair') {
         setUserRepairFeedback(
-          'Zapret: служба активна, Discord и cfx.re отвечают.',
+          'Проверка сети: не все узлы доступны. Повторите виджет для запуска обхода.',
           false,
-          'General ALT9, автообновления и игровой фильтр включены.'
+          detailMsg,
+          'warn'
         );
-        setRepairNetworkButtonUi(true, false);
         return;
       }
 
-      const tunOk = await startTunnelFromSubscriptionWithFeedback();
-      if (tunOk) {
-        setRepairNetworkButtonUi(true, true);
-        return;
-      }
-      setUserRepairFeedback(
-        'Zapret установлен, но узлы всё ещё недоступны; TUN не удалось запустить.',
-        true,
-        'Проверьте подписку в launcher.config.json и sing-box.',
-        'err'
-      );
+      await runRknRepairAfterProbe(useTunnelOnly);
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -1937,15 +2088,7 @@ html, body {
   });
 
   $('#btnCheckUpdates')?.addEventListener('click', async () => {
-    const b = $('#btnCheckUpdates');
-    if (b) b.classList.add('is-loading');
-    try {
-      window.launcher.openExternal('https://github.com/magner85/AfterlifeLauncher/releases');
-    } finally {
-      setTimeout(() => {
-        if (b) b.classList.remove('is-loading');
-      }, 500);
-    }
+    await runLauncherSelfUpdateCheck(true);
   });
 
   $('#btnReloadEmbed').addEventListener('click', () => {
@@ -2019,6 +2162,11 @@ html, body {
       applyFivemInstallProgressPayload(payload);
     });
   }
+  if (typeof window.launcher.onLauncherSelfUpdateProgress === 'function') {
+    window.launcher.onLauncherSelfUpdateProgress((payload) => {
+      applyFivemInstallProgressPayload(payload);
+    });
+  }
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
@@ -2049,5 +2197,6 @@ html, body {
       void runEmbedChromeKillOnly();
       void runEmbedFirstNewsOnly();
     }, 450);
+    scheduleLauncherAutoUpdateCheck();
   });
 })();

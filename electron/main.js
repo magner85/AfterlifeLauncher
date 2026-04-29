@@ -45,6 +45,23 @@ function normalizeConfig(merged) {
   c.fivemExePath = c.fivemExePath.trim();
   if (typeof c.fivemClientZipUrl !== 'string') c.fivemClientZipUrl = '';
   c.fivemClientZipUrl = c.fivemClientZipUrl.trim();
+  if (typeof c.updateRepo !== 'string') c.updateRepo = '';
+  c.updateRepo = c.updateRepo.trim();
+  if (typeof c.updateAssetName !== 'string') c.updateAssetName = '';
+  c.updateAssetName = c.updateAssetName.trim();
+  if (typeof c.updateBranch !== 'string') c.updateBranch = '';
+  c.updateBranch = (c.updateBranch.trim() || 'stable');
+  if (typeof c.updateVersionManifest !== 'string') c.updateVersionManifest = '';
+  c.updateVersionManifest = (c.updateVersionManifest.trim() || 'launcher-version.json');
+  if (typeof c.fivemBundleBranch !== 'string') c.fivemBundleBranch = '';
+  c.fivemBundleBranch = c.fivemBundleBranch.trim();
+  c.updateAutoCheck =
+    c.updateAutoCheck === false ||
+    c.updateAutoCheck === 'false' ||
+    c.updateAutoCheck === 0 ||
+    c.updateAutoCheck === '0'
+      ? false
+      : true;
   delete c.bypassOrder;
   delete c.zapretPath;
   delete c.zaperPath;
@@ -122,8 +139,188 @@ function getDefaultConfig() {
      * URL ZIP с содержимым %LocalAppData%\\FiveM. Пустая строка — качать с релиза лаунчера (fivem-bundle/FiveM.zip).
      * Локальный bundled-fivem/FiveM.zip всегда важнее URL.
      */
-    fivemClientZipUrl: ''
+    fivemClientZipUrl: '',
+    /** Пусто = magner85/AfterlifeLauncher; иначе owner/repo или URL репозитория. */
+    updateRepo: '',
+    /** Точное имя файла вложения или фрагмент; пусто = первый *portable*.exe (только для fallback через Releases API). */
+    updateAssetName: '',
+    /** Ветка с portable и launcher-version.json (raw.githubusercontent.com). */
+    updateBranch: 'stable',
+    /** Имя JSON в ветке: version + file или downloadUrl. */
+    updateVersionManifest: 'launcher-version.json',
+    /** Ветка с FiveM.zip; пусто = та же, что updateBranch. */
+    fivemBundleBranch: '',
+    /** При старте проверять обновление (манифест ветки или GitHub Releases). */
+    updateAutoCheck: true
   };
+}
+
+const DEFAULT_SELF_UPDATE_REPO = 'magner85/AfterlifeLauncher';
+
+function parseGithubRepo(repoStr) {
+  const t = String(repoStr || '').trim();
+  if (!t) return null;
+  const mUrl = t.match(/github\.com\/([^/]+)\/([^/#?]+)/i);
+  if (mUrl) {
+    const repo = mUrl[2].replace(/\.git$/i, '');
+    return { owner: mUrl[1], repo };
+  }
+  const mShort = t.match(/^([^/]+)\/([^/]+)$/);
+  if (mShort) return { owner: mShort[1], repo: mShort[2].replace(/\.git$/i, '') };
+  return null;
+}
+
+function normalizeSemverTriplet(s) {
+  const t = String(s || '')
+    .replace(/^v/i, '')
+    .trim();
+  const m = t.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!m) return null;
+  return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
+}
+
+function isRemoteVersionNewer(remoteVer, currentVer) {
+  const a = normalizeSemverTriplet(remoteVer);
+  const b = normalizeSemverTriplet(currentVer);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
+function pickPortableReleaseAsset(assets, preferredName) {
+  const list = Array.isArray(assets) ? assets : [];
+  const pref = String(preferredName || '').trim().toLowerCase();
+  if (pref) {
+    const exact = list.find((x) => String(x.name || '').toLowerCase() === pref);
+    if (exact) return exact;
+    const part = list.find((x) => String(x.name || '').toLowerCase().includes(pref));
+    if (part) return part;
+  }
+  const portable = list.find((x) => {
+    const n = String(x.name || '').toLowerCase();
+    return n.endsWith('.exe') && (n.includes('portable') || n.includes('launcher'));
+  });
+  return portable || list.find((x) => String(x.name || '').toLowerCase().endsWith('.exe'));
+}
+
+async function fetchGithubLatestRelease(owner, repo) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), 22000);
+  try {
+    const res = await fetch(url, {
+      signal: ac.signal,
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'AfterlifeLauncher-SelfUpdate'
+      }
+    });
+    if (res.status === 404) throw new Error('Релиз не найден (404).');
+    if (!res.ok) throw new Error(`GitHub API: ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function selfUpdateCheckViaGithubRelease(cfg, repo, currentVersion) {
+  const rel = await fetchGithubLatestRelease(repo.owner, repo.repo);
+  const tagRaw = String(rel.tag_name || '').replace(/^v/i, '').trim();
+  const latestVersion = (tagRaw.match(/^(\d+\.\d+\.\d+)/) || [null, tagRaw])[1] || tagRaw;
+  const asset = pickPortableReleaseAsset(rel.assets, cfg.updateAssetName);
+  const downloadUrl = asset && asset.browser_download_url ? String(asset.browser_download_url) : '';
+  const needsUpdate = !!(downloadUrl && isRemoteVersionNewer(latestVersion, currentVersion));
+  return {
+    ok: true,
+    currentVersion,
+    latestVersion,
+    needsUpdate,
+    downloadUrl: needsUpdate ? downloadUrl : '',
+    releaseTitle: rel.name || '',
+    body: typeof rel.body === 'string' ? rel.body.slice(0, 1200) : '',
+    source: 'release'
+  };
+}
+
+/** JSON из ветки: { version, file?, downloadUrl?, notes? } — без GitHub Releases. */
+async function fetchBranchLauncherManifest(owner, repo, branch, manifestFile) {
+  const pathEnc = String(manifestFile || 'launcher-version.json')
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${pathEnc}`;
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), 22000);
+  try {
+    const res = await fetch(url, {
+      signal: ac.signal,
+      headers: { 'User-Agent': 'AfterlifeLauncher-SelfUpdate', Accept: 'application/json' }
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Манифест обновления: HTTP ${res.status}`);
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error('launcher-version.json: невалидный JSON');
+    }
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+function rawGithubFileUrl(owner, repo, branch, relativeFile) {
+  const pathEnc = String(relativeFile || '')
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${pathEnc}`;
+}
+
+function defaultFivemZipUrlFromConfig(cfg) {
+  const repo = parseGithubRepo(cfg.updateRepo) || parseGithubRepo(DEFAULT_SELF_UPDATE_REPO);
+  if (!repo) {
+    return 'https://github.com/magner85/AfterlifeLauncher/releases/download/fivem-bundle/FiveM.zip';
+  }
+  const branch = String(cfg.fivemBundleBranch || cfg.updateBranch || 'stable').trim() || 'stable';
+  return rawGithubFileUrl(repo.owner, repo.repo, branch, FIVEM_BUNDLE_ZIP_NAME);
+}
+
+function sendLauncherSelfUpdateProgress(payload) {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('launcher-self-update-progress', payload);
+    }
+  } catch (_) {}
+}
+
+function writeAndSpawnSelfUpdateBatch(targetExe, pendingPath) {
+  const dir = path.dirname(targetExe);
+  const batPath = path.join(dir, `._al_update_${Date.now()}.cmd`);
+  const q = (p) => String(p).replace(/"/g, '""');
+  const lines = [
+    '@echo off',
+    'timeout /t 2 /nobreak >nul',
+    `del /f /q "${q(targetExe)}" 2>nul`,
+    `copy /y "${q(pendingPath)}" "${q(targetExe)}"`,
+    `if exist "${q(pendingPath)}" del /f /q "${q(pendingPath)}" 2>nul`,
+    `start "" "${q(targetExe)}"`,
+    'del /f /q "%~f0" 2>nul'
+  ];
+  fs.writeFileSync(batPath, lines.join('\r\n'), 'utf8');
+  const comspec = process.env.ComSpec || 'cmd.exe';
+  const child = spawn(comspec, ['/d', '/s', '/c', batPath], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    cwd: dir
+  });
+  child.unref();
 }
 
 /** Папка с launcher.exe (сборка) или корень проекта (dev) — сюда кладите sing-box.exe */
@@ -515,6 +712,171 @@ ipcMain.handle('config:set', (_e, partial) => {
 });
 
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url));
+
+ipcMain.handle('launcher:checkSelfUpdate', async () => {
+  const currentVersion = app.getVersion();
+  if (!app.isPackaged) {
+    return { ok: true, devMode: true, currentVersion, needsUpdate: false };
+  }
+  if (process.platform !== 'win32') {
+    return {
+      ok: false,
+      error: 'Автообновление exe поддерживается только в Windows.',
+      currentVersion,
+      needsUpdate: false
+    };
+  }
+  const cfg = loadConfig();
+  const repo =
+    parseGithubRepo(cfg.updateRepo) || parseGithubRepo(DEFAULT_SELF_UPDATE_REPO);
+  if (!repo) {
+    return {
+      ok: false,
+      error: 'В launcher.config.json задайте updateRepo в формате owner/repo.',
+      currentVersion,
+      needsUpdate: false
+    };
+  }
+
+  const branch = String(cfg.updateBranch || 'stable').trim() || 'stable';
+  const manifestName =
+    String(cfg.updateVersionManifest || 'launcher-version.json').trim() || 'launcher-version.json';
+
+  const resultFromManifest = (manifest) => {
+    const latestVersion = String(manifest.version || manifest.latest || '')
+      .replace(/^v/i, '')
+      .trim();
+    const file = String(manifest.file || manifest.portableFile || '').trim();
+    let downloadUrl = String(manifest.downloadUrl || manifest.url || '').trim();
+    if (!downloadUrl && file) {
+      downloadUrl = rawGithubFileUrl(repo.owner, repo.repo, branch, file);
+    }
+    const body = typeof manifest.notes === 'string' ? manifest.notes.slice(0, 1200) : '';
+    if (!latestVersion || !downloadUrl) return null;
+    const needsUpdate = isRemoteVersionNewer(latestVersion, currentVersion);
+    return {
+      ok: true,
+      currentVersion,
+      latestVersion,
+      needsUpdate,
+      downloadUrl: needsUpdate ? downloadUrl : '',
+      releaseTitle: '',
+      body,
+      source: 'branch'
+    };
+  };
+
+  try {
+    let manifest = null;
+    try {
+      manifest = await fetchBranchLauncherManifest(repo.owner, repo.repo, branch, manifestName);
+    } catch (me) {
+      try {
+        return await selfUpdateCheckViaGithubRelease(cfg, repo, currentVersion);
+      } catch {
+        return {
+          ok: false,
+          error: String(me.message || me),
+          currentVersion,
+          needsUpdate: false
+        };
+      }
+    }
+
+    if (manifest && typeof manifest === 'object') {
+      const fromBr = resultFromManifest(manifest);
+      if (fromBr) return fromBr;
+    }
+
+    return await selfUpdateCheckViaGithubRelease(cfg, repo, currentVersion);
+  } catch (e) {
+    return {
+      ok: false,
+      error: String(e.message || e),
+      currentVersion,
+      needsUpdate: false
+    };
+  }
+});
+
+ipcMain.handle('launcher:applySelfUpdate', async (_e, downloadUrl) => {
+  if (!app.isPackaged) {
+    return { ok: false, error: 'Обновление exe только в собранной portable/setup версии.' };
+  }
+  if (process.platform !== 'win32') {
+    return { ok: false, error: 'Только Windows.' };
+  }
+  const url = String(downloadUrl || '').trim();
+  let uo;
+  try {
+    uo = new URL(url);
+    if (uo.protocol !== 'https:' && uo.protocol !== 'http:') throw new Error('protocol');
+  } catch {
+    return { ok: false, error: 'Некорректная ссылка на файл обновления.' };
+  }
+  const h = String(uo.hostname || '').toLowerCase();
+  const githubOk =
+    h === 'github.com' ||
+    h.endsWith('.github.com') ||
+    h === 'raw.githubusercontent.com' ||
+    h.endsWith('.githubusercontent.com');
+  if (!githubOk) {
+    return { ok: false, error: 'Разрешена только загрузка с GitHub (raw/releases).' };
+  }
+  const targetExe = process.execPath;
+  const dir = path.dirname(targetExe);
+  const pending = path.join(dir, `.afterlife_update_${Date.now()}.exe`);
+  try {
+    sendLauncherSelfUpdateProgress({
+      phase: 'download',
+      percent: 0,
+      indeterminate: false,
+      label: 'Загрузка обновления лаунчера…',
+      hint: ''
+    });
+    await downloadHttpOrHttpsToFileWithProgress(url, pending, (received, total) => {
+      const pct = total > 0 ? Math.min(99, Math.floor((received / total) * 100)) : 0;
+      const hint =
+        total > 0
+          ? `${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} МБ`
+          : `${(received / 1048576).toFixed(1)} МБ`;
+      sendLauncherSelfUpdateProgress({
+        phase: 'download',
+        percent: pct,
+        indeterminate: false,
+        label: 'Загрузка обновления лаунчера…',
+        hint
+      });
+    });
+    sendLauncherSelfUpdateProgress({
+      phase: 'install',
+      percent: 100,
+      indeterminate: true,
+      label: 'Перезапуск лаунчера…',
+      hint: ''
+    });
+    writeAndSpawnSelfUpdateBatch(targetExe, pending);
+    isLauncherQuitting = true;
+    setTimeout(() => {
+      try {
+        app.quit();
+      } catch (_) {}
+    }, 320);
+    return { ok: true };
+  } catch (e) {
+    sendLauncherSelfUpdateProgress({
+      phase: 'error',
+      percent: 0,
+      indeterminate: false,
+      label: '',
+      hint: ''
+    });
+    try {
+      if (fs.existsSync(pending)) fs.unlinkSync(pending);
+    } catch (_) {}
+    return { ok: false, error: String(e.message || e) };
+  }
+});
 
 async function fetchUrlText(url, timeoutMs = 25000) {
   const ac = new AbortController();
@@ -1197,6 +1559,26 @@ function getTunnelPidExcludeSet() {
   return ex;
 }
 
+/** Хост сайта из конфига (сначала embedUrl, иначе projectUrl) для TCP-пробы до HTTP/webview. */
+function getEmbedSiteHostname(cfg) {
+  if (!cfg) return '';
+  const pick = (s) => {
+    if (!s || typeof s !== 'string') return '';
+    const t = s.trim();
+    if (!t) return '';
+    try {
+      const withScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(t) ? t : `https://${t}`;
+      const u = new URL(withScheme);
+      return String(u.hostname || '').trim();
+    } catch {
+      return '';
+    }
+  };
+  let h = pick(cfg.embedUrl);
+  if (!h) h = pick(cfg.projectUrl);
+  return h;
+}
+
 function tcpConnectProbe(host, port, timeoutMs) {
   const ms = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : 4500;
   return new Promise((resolve) => {
@@ -1220,17 +1602,30 @@ function tcpConnectProbe(host, port, timeoutMs) {
   });
 }
 
-/** Сначала целевые узлы FiveM / Discord (TCP 443), без HTTP. */
+/** TCP 443: сначала хост сайта из конфига, затем cfx.re и discord.com (без HTTP). */
 ipcMain.handle('routing:probeDiscordFiveM', async () => {
   if (process.platform !== 'win32') {
-    return { ok: false, cfx443: false, discord443: false, allOk: false };
+    return {
+      ok: false,
+      siteHost: '',
+      site443: false,
+      cfx443: false,
+      discord443: false,
+      allOk: false
+    };
+  }
+  const cfg = loadConfig();
+  const siteHost = getEmbedSiteHostname(cfg);
+  let site443 = false;
+  if (siteHost) {
+    site443 = await tcpConnectProbe(siteHost, 443, 5000);
   }
   const [cfx443, discord443] = await Promise.all([
     tcpConnectProbe('cfx.re', 443, 5000),
     tcpConnectProbe('discord.com', 443, 5000)
   ]);
-  const allOk = !!(cfx443 && discord443);
-  return { ok: true, cfx443, discord443, allOk };
+  const allOk = !!(siteHost && site443 && cfx443 && discord443);
+  return { ok: true, siteHost, site443, cfx443, discord443, allOk };
 });
 
 ipcMain.handle('bypass:killUserBypass', async () => {
@@ -1512,7 +1907,7 @@ async function launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr) {
 }
 
 const FIVEM_BUNDLE_ZIP_NAME = 'FiveM.zip';
-/** Публичный ZIP в релизе репозитория лаунчера (тег fivem-bundle, вложение FiveM.zip). Пустой fivemClientZipUrl в конфиге = этот URL. */
+/** Запасной URL, если не удалось собрать raw-ссылку из updateRepo / веток. */
 const FIVEM_BUNDLE_RELEASE_ZIP_URL =
   'https://github.com/magner85/AfterlifeLauncher/releases/download/fivem-bundle/FiveM.zip';
 
@@ -1540,7 +1935,7 @@ function resolveFivemZipSource(cfg) {
   const local = findBundledFivemZipPath();
   if (local) return { kind: 'local', path: local };
   const urlStr = String(cfg.fivemClientZipUrl || '').trim();
-  const candidate = urlStr || FIVEM_BUNDLE_RELEASE_ZIP_URL;
+  const candidate = urlStr || defaultFivemZipUrlFromConfig(cfg) || FIVEM_BUNDLE_RELEASE_ZIP_URL;
   try {
     const u = new URL(candidate);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;

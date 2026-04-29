@@ -46,9 +46,6 @@
               <article class="native-news-body" id="nativeNewsBody" hidden></article>
               <div class="native-news-list" id="nativeNewsList" hidden role="list" aria-label="Последние новости"></div>
             </div>
-            <p class="webview-watermark" aria-hidden="true">
-              AfterLife DayZ — All Rights reserved 2026 · Launcher by Magner v 0.25.0 ALPHA
-            </p>
             <webview
               id="siteWebview"
               src="about:blank"
@@ -107,14 +104,19 @@
               </p>
             </div>
 
-            <button type="button" class="btn btn-check-updates" id="btnCheckUpdates" title="Проверить обновления лаунчера">
+            <button
+              type="button"
+              class="btn btn-check-updates"
+              id="btnCheckUpdates"
+              title="Проверить и установить обновление лаунчера"
+              aria-label="Обновить лаунчер"
+            >
               <span class="btn-check-updates__arrows" aria-hidden="true">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M7 5V15M7 15L3 11M7 15L11 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M17 19V9M17 9L13 13M17 9L21 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </span>
-              <span class="btn-check-updates__label">Обновить</span>
             </button>
             <button type="button" class="btn btn-primary btn-glow btn-play-dock" id="btnPlay">
               <span class="btn-play-icon"></span>
@@ -208,6 +210,10 @@
           </button>
         </div>
       </footer>
+
+      <p class="app-watermark" aria-hidden="true">
+        AfterLife DayZ — All Rights reserved 2026 · Launcher by Magner v 0.25.0 ALPHA
+      </p>
     </div>
 
     <div class="al-modal-backdrop" id="alModalBackdrop" hidden aria-hidden="true">
