@@ -501,7 +501,7 @@ body::before {
 
 .main-dock {
   flex: 0 0 auto;
-  padding: 3px 6px 4px;
+  padding: 8px 10px 9px;
   min-width: 0;
 }
 
@@ -511,8 +511,9 @@ body::before {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 5px;
+  gap: 9px;
   min-width: 0;
+  min-height: 56px;
   flex-wrap: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
@@ -520,7 +521,7 @@ body::before {
 }
 
 .dock-bar::-webkit-scrollbar {
-  height: 4px;
+  height: 6px;
 }
 
 .dock-bar::-webkit-scrollbar-thumb {
@@ -529,21 +530,21 @@ body::before {
 }
 
 .server-card--dock {
-  padding: 2px 6px 2px 5px;
+  padding: 5px 10px 5px 8px;
   margin: 0;
   border-radius: var(--inv-radius-sm);
   border: 1px solid rgba(201, 162, 39, 0.15);
   background: rgba(0, 0, 0, 0.18);
   flex: 0 1 auto;
   min-width: 0;
-  max-width: min(340px, 38vw);
+  max-width: min(440px, 48vw);
 }
 
 .server-dock-inline {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   min-width: 0;
   flex-wrap: nowrap;
 }
@@ -559,11 +560,11 @@ body::before {
 
 .server-title-main--dock .server-title-prefix {
   flex-shrink: 0;
-  font-size: 0.58rem;
+  font-size: 0.72rem;
 }
 
 .server-title-main--dock .server-name {
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -571,22 +572,22 @@ body::before {
 }
 
 .server-card--dock .btn-refresh-server {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
 }
 
 .server-card--dock .btn-refresh-server__icon {
-  font-size: 0.95rem;
+  font-size: 1.15rem;
 }
 
 .pill--dock {
   flex-shrink: 0;
-  font-size: 0.6rem !important;
-  padding: 2px 6px !important;
-  min-height: 22px !important;
-  line-height: 1.2 !important;
-  max-width: 108px;
+  font-size: 0.76rem !important;
+  padding: 5px 10px !important;
+  min-height: 36px !important;
+  line-height: 1.25 !important;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -594,9 +595,9 @@ body::before {
 
 .server-badge--dock {
   flex-shrink: 0;
-  min-height: 22px !important;
-  padding: 2px 7px !important;
-  font-size: 0.52rem !important;
+  min-height: 36px !important;
+  padding: 4px 11px !important;
+  font-size: 0.64rem !important;
   letter-spacing: 0.1em !important;
 }
 
@@ -606,30 +607,30 @@ body::before {
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
-  gap: 3px;
-  padding: 0;
+  gap: 6px;
+  padding: 0 2px;
   flex: 0 0 auto;
 }
 
 .dock-widgets-row .widget-btn {
-  max-width: 32px;
+  max-width: 44px;
 }
 
 .dock-widgets-row .widget-btn__icon {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
 }
 
 /* Статус / прогресс — узкая колонка по содержимому */
 .dock-launch__track {
   flex: 0 1 auto;
-  min-width: min(120px, 22vw);
-  max-width: min(200px, 32vw);
-  min-height: 0;
+  min-width: min(150px, 26vw);
+  max-width: min(260px, 36vw);
+  min-height: 52px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .dock-bar > .btn-check-updates,
@@ -669,7 +670,7 @@ body::before {
 }
 
 .fivem-progress__bar {
-  height: 5px;
+  height: 7px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(201, 162, 39, 0.22);
@@ -687,15 +688,15 @@ body::before {
 
 .routing-status-line {
   margin: 0;
-  padding: 3px 8px;
-  min-height: 28px;
+  padding: 8px 12px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  font-size: 0.65rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.25;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
   color: rgba(231, 232, 236, 0.52);
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(70, 76, 88, 0.65);
@@ -729,17 +730,17 @@ body::before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 0 8px;
-  min-height: 30px;
-  border-radius: 6px;
+  gap: 7px;
+  padding: 0 14px;
+  min-height: 52px;
+  border-radius: 9px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.06);
   color: #f4f4f5;
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   cursor: pointer;
   transition:
@@ -769,8 +770,8 @@ body::before {
 }
 
 .btn-check-updates__arrows svg {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
 }
 
 .btn-check-updates.is-loading .btn-check-updates__arrows {
@@ -780,23 +781,23 @@ body::before {
 .btn-play-dock {
   flex: 0 0 auto;
   width: auto !important;
-  min-width: 108px;
-  min-height: 30px;
-  padding: 5px 12px !important;
-  font-size: 0.72rem !important;
-  letter-spacing: 0.08em !important;
-  border-radius: 6px !important;
+  min-width: 148px;
+  min-height: 52px;
+  padding: 10px 22px !important;
+  font-size: 0.92rem !important;
+  letter-spacing: 0.1em !important;
+  border-radius: 9px !important;
 }
 
 .btn-play-dock .btn-play-icon {
-  border-width: 5px 0 5px 9px;
+  border-width: 8px 0 8px 14px;
 }
 
 .widget-btn--rkn {
   flex: 0 0 auto;
-  width: 34px;
-  max-width: 34px;
-  height: 34px;
+  width: 52px;
+  max-width: 52px;
+  height: 52px;
   border-radius: var(--inv-radius-sm);
   border: 1px solid rgba(201, 162, 39, 0.25);
   background: rgba(0, 0, 0, 0.2);
@@ -813,8 +814,8 @@ body::before {
 }
 
 .widget-btn--rkn .widget-btn__icon {
-  width: 26px;
-  height: 26px;
+  width: 38px;
+  height: 38px;
 }
 
 .app:not([data-dev='true']) .field--bypass-dev-tunnel {
@@ -2337,8 +2338,9 @@ webview[hidden] {
   }
 
   .btn-check-updates {
-    padding: 0 7px;
-    min-width: 34px;
+    padding: 0 10px;
+    min-width: 48px;
+    min-height: 48px;
   }
   .app[data-dev='true'] .btn-bypass.btn-bypass--dev-only {
     margin-left: 0;
