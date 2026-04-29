@@ -939,7 +939,11 @@ const BYPASS_PROCESS_SIGNATURES = [
   { match: 'warp', label: 'Cloudflare WARP' },
   { match: 'spoof-dpi', label: 'SpoofDPI' },
   { match: 'spoofdpi', label: 'SpoofDPI' },
-  { match: 'byedpi', label: 'ByeDPI' }
+  { match: 'byedpi', label: 'ByeDPI' },
+  { match: 'proxifier', label: 'Proxifier' },
+  { match: 'dnscrypt', label: 'DNSCrypt' },
+  { match: 'simplednscrypt', label: 'Simple DNSCrypt' },
+  { match: 'pritunl', label: 'Pritunl' }
 ];
 
 function detectBypassProcessesWindows() {

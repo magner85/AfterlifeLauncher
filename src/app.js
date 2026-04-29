@@ -12,6 +12,8 @@
   /** Ссылка на Discord через VK away — единый канон для кнопок и дефолтов. */
   const DEFAULT_DISCORD_URL =
     'https://vk.com/away.php?to=https%3A%2F%2Fdiscord.gg%2FGK35WfYjtr&utf=1';
+  /** Виджет багов — отдельный инвайт на канал репортов. */
+  const BUG_REPORT_DISCORD_URL = 'https://discord.gg/ksHb8mTz';
 
   /** Стили и поведение гостевой страницы во фрейме (insertCSS + zoom) — как в рабочей сборке C:\\Afterlife. */
   const EMBED_GUEST_CSS = `
@@ -1295,6 +1297,26 @@ html, body {
   }
 
   let repairFeedbackOverride = null;
+  /** Обнаружены VPN/DPI/Zapret и т.п. (system:detectBypassTools), не считая встроенный обход лаунчера. */
+  let externalBypassDetected = false;
+  let externalBypassSummary = '';
+
+  async function refreshExternalBypassUi() {
+    externalBypassDetected = false;
+    externalBypassSummary = '';
+    try {
+      if (typeof window.launcher.detectBypassTools !== 'function') {
+        renderRoutingLine();
+        return;
+      }
+      const r = await window.launcher.detectBypassTools();
+      if (r && r.found && Array.isArray(r.items) && r.items.length) {
+        externalBypassDetected = true;
+        externalBypassSummary = r.items.map((it) => String(it.label || '').trim()).filter(Boolean).join(', ');
+      }
+    } catch (_) {}
+    renderRoutingLine();
+  }
 
   /** Строка под новостями: прогресс FiveM или тип обхода / сообщение починки. */
   function renderRoutingLine() {
@@ -1315,6 +1337,13 @@ html, body {
       el.textContent = clientRepairWasTunnel ? 'Обход: VPN (sing-box TUN)' : 'Обход: Zapret';
       el.dataset.state = 'ok';
       el.removeAttribute('title');
+      return;
+    }
+    if (externalBypassDetected) {
+      el.textContent = 'Сторонний обход';
+      el.dataset.state = 'external';
+      if (externalBypassSummary) el.setAttribute('title', externalBypassSummary);
+      else el.removeAttribute('title');
       return;
     }
     el.textContent = 'Обход не используется';
@@ -1572,9 +1601,7 @@ html, body {
     window.launcher.openExternal((config && config.discordUrl) || DEFAULT_DISCORD_URL)
   );
   $('#wVk').addEventListener('click', () => window.launcher.openExternal(config.vkUrl || 'https://vk.com'));
-  $('#wBugReport')?.addEventListener('click', () =>
-    window.launcher.openExternal((config && config.discordUrl) || DEFAULT_DISCORD_URL)
-  );
+  $('#wBugReport')?.addEventListener('click', () => window.launcher.openExternal(BUG_REPORT_DISCORD_URL));
   window.addEventListener(
     'keydown',
     (e) => {
@@ -1864,14 +1891,15 @@ html, body {
 
   window.addEventListener('focus', () => {
     refreshElevationUi();
+    void refreshExternalBypassUi();
   });
 
-  loadConfig().then(() => {
+  loadConfig().then(async () => {
     if (!isDevMode()) {
       appEl.dataset.bypass = 'closed';
     }
     setUserRepairFeedback('', false);
-    renderRoutingLine();
+    await refreshExternalBypassUi();
     refreshServerUi();
     refreshElevationUi();
     statusTimer = setInterval(refreshServerUi, 30000);
