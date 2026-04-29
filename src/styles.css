@@ -501,86 +501,141 @@ body::before {
 
 .main-dock {
   flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px 10px 8px;
+  padding: 3px 6px 4px;
   min-width: 0;
 }
 
+/* Одна горизонтальная строка: сервер · виджеты · статус · кнопки */
+.dock-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.dock-bar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.dock-bar::-webkit-scrollbar-thumb {
+  background: rgba(70, 76, 88, 0.85);
+  border-radius: 999px;
+}
+
 .server-card--dock {
-  padding: 5px 8px 6px;
+  padding: 2px 6px 2px 5px;
   margin: 0;
-  border-radius: var(--radius);
+  border-radius: var(--inv-radius-sm);
   border: 1px solid rgba(201, 162, 39, 0.15);
   background: rgba(0, 0, 0, 0.18);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(340px, 38vw);
 }
 
-.server-card--dock .server-title-row {
-  margin-bottom: 4px;
-  min-height: 0;
+.server-dock-inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
-.server-card--dock .server-stats-row {
-  min-height: 26px;
-  gap: 6px;
+.server-title-main--dock {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.server-title-main--dock .server-title-prefix {
+  flex-shrink: 0;
+  font-size: 0.58rem;
+}
+
+.server-title-main--dock .server-name {
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .server-card--dock .btn-refresh-server {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.server-card--dock .btn-refresh-server__icon {
+  font-size: 0.95rem;
+}
+
+.pill--dock {
+  flex-shrink: 0;
+  font-size: 0.6rem !important;
+  padding: 2px 6px !important;
+  min-height: 22px !important;
+  line-height: 1.2 !important;
+  max-width: 108px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-badge--dock {
+  flex-shrink: 0;
+  min-height: 22px !important;
+  padding: 2px 7px !important;
+  font-size: 0.52rem !important;
+  letter-spacing: 0.1em !important;
 }
 
 .dock-widgets-row {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px 10px;
-  padding: 2px 0;
-  min-width: 0;
+  gap: 3px;
+  padding: 0;
+  flex: 0 0 auto;
 }
 
 .dock-widgets-row .widget-btn {
-  max-width: 40px;
+  max-width: 32px;
 }
 
 .dock-widgets-row .widget-btn__icon {
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
 }
 
-.dock-launch-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
-  min-width: 0;
-  flex-wrap: nowrap;
-}
-
-/* Полоса статуса — по содержимому, без растягивания на всю ширину окна */
+/* Статус / прогресс — узкая колонка по содержимому */
 .dock-launch__track {
   flex: 0 1 auto;
-  min-width: min(160px, 28vw);
-  max-width: min(340px, 42vw);
+  min-width: min(120px, 22vw);
+  max-width: min(200px, 32vw);
   min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
+  gap: 2px;
 }
 
-.dock-launch-row > .btn-check-updates,
-.dock-launch-row > .btn-play-dock,
-.dock-launch-row > .widget-btn--rkn {
-  margin-left: 0;
-}
-
-.dock-launch-row > .btn-check-updates {
-  margin-left: auto;
+.dock-bar > .btn-check-updates,
+.dock-bar > .btn-play-dock,
+.dock-bar > .widget-btn--rkn {
+  flex-shrink: 0;
 }
 
 .fivem-progress {
@@ -632,15 +687,15 @@ body::before {
 
 .routing-status-line {
   margin: 0;
-  padding: 5px 10px;
-  min-height: 32px;
+  padding: 3px 8px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
-  line-height: 1.3;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
   color: rgba(231, 232, 236, 0.52);
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(70, 76, 88, 0.65);
@@ -674,17 +729,17 @@ body::before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 10px;
-  min-height: 34px;
-  border-radius: 8px;
+  gap: 4px;
+  padding: 0 8px;
+  min-height: 30px;
+  border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.06);
   color: #f4f4f5;
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 0.65rem;
-  letter-spacing: 0.1em;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
   transition:
@@ -714,8 +769,8 @@ body::before {
 }
 
 .btn-check-updates__arrows svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .btn-check-updates.is-loading .btn-check-updates__arrows {
@@ -725,23 +780,23 @@ body::before {
 .btn-play-dock {
   flex: 0 0 auto;
   width: auto !important;
-  min-width: 128px;
-  min-height: 34px;
-  padding: 7px 16px !important;
-  font-size: 0.8rem !important;
-  letter-spacing: 0.1em !important;
-  border-radius: 8px !important;
+  min-width: 108px;
+  min-height: 30px;
+  padding: 5px 12px !important;
+  font-size: 0.72rem !important;
+  letter-spacing: 0.08em !important;
+  border-radius: 6px !important;
 }
 
 .btn-play-dock .btn-play-icon {
-  border-width: 6px 0 6px 11px;
+  border-width: 5px 0 5px 9px;
 }
 
 .widget-btn--rkn {
   flex: 0 0 auto;
-  width: 40px;
-  max-width: 40px;
-  height: 40px;
+  width: 34px;
+  max-width: 34px;
+  height: 34px;
   border-radius: var(--inv-radius-sm);
   border: 1px solid rgba(201, 162, 39, 0.25);
   background: rgba(0, 0, 0, 0.2);
@@ -758,8 +813,8 @@ body::before {
 }
 
 .widget-btn--rkn .widget-btn__icon {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
 }
 
 .app:not([data-dev='true']) .field--bypass-dev-tunnel {
@@ -2260,21 +2315,22 @@ webview[hidden] {
 }
 
 @media (max-width: 720px) {
-  .dock-launch-row {
-    flex-wrap: wrap;
-  }
-  .btn-play-dock {
-    flex: 1 1 auto;
-    min-width: 140px;
-  }
-  .dock-launch__track {
-    flex: 1 1 100%;
-    max-width: 100%;
-    order: -1;
+  .server-card--dock {
+    max-width: min(280px, 55vw);
   }
 
-  .dock-launch-row > .btn-check-updates {
-    margin-left: 0;
+  .dock-launch__track {
+    min-width: 100px;
+    max-width: min(160px, 40vw);
+  }
+
+  .btn-check-updates__label {
+    display: none;
+  }
+
+  .btn-check-updates {
+    padding: 0 7px;
+    min-width: 34px;
   }
   .app[data-dev='true'] .btn-bypass.btn-bypass--dev-only {
     margin-left: 0;

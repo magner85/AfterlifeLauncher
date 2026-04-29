@@ -61,39 +61,37 @@
         </section>
 
         <div class="main-dock glass">
-          <div class="dock-server server-card server-card--dock" id="serverCard">
-            <div class="server-title-row">
-              <div class="server-title-main">
-                <span class="server-title-prefix">Сервер:</span>
-                <span class="server-name" id="serverName">—</span>
+          <div class="dock-bar" role="toolbar" aria-label="Сервер, ссылки и запуск">
+            <div class="dock-server server-card server-card--dock" id="serverCard">
+              <div class="server-dock-inline">
+                <div class="server-title-main server-title-main--dock">
+                  <span class="server-title-prefix">Сервер:</span>
+                  <span class="server-name" id="serverName">—</span>
+                </div>
+                <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
+                  <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
+                </button>
+                <span class="pill pill--server pill--dock" id="serverPlayers">Игроки: —</span>
+                <span class="pill pill--server pill--dock" id="serverPing">Пинг: —</span>
+                <span class="server-badge server-badge--inline server-badge--dock" id="serverBadge" data-state="loading">Проверка…</span>
               </div>
-              <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
-                <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
+            </div>
+
+            <div class="dock-widgets-row">
+              <button type="button" class="widget-btn" id="wSite" title="Сайт проекта">
+                <img class="widget-btn__icon" src="assets/titlebar-logo.png" alt="" width="40" height="40" />
+              </button>
+              <button type="button" class="widget-btn" id="wDiscord" title="Discord">
+                <img class="widget-btn__icon" src="assets/ds.png" alt="" width="40" height="40" />
+              </button>
+              <button type="button" class="widget-btn" id="wVk" title="ВКонтакте">
+                <img class="widget-btn__icon" src="assets/vk.png" alt="" width="40" height="40" />
+              </button>
+              <button type="button" class="widget-btn" id="wBugReport" title="Сообщить о баге">
+                <img class="widget-btn__icon" src="assets/bug.png" alt="" width="40" height="40" />
               </button>
             </div>
-            <div class="server-stats-row">
-              <span class="pill pill--server" id="serverPlayers">Игроки: —</span>
-              <span class="pill pill--server" id="serverPing">Пинг: —</span>
-              <span class="server-badge server-badge--inline" id="serverBadge" data-state="loading">Проверка…</span>
-            </div>
-          </div>
 
-          <div class="dock-widgets-row">
-            <button type="button" class="widget-btn" id="wSite" title="Сайт проекта">
-              <img class="widget-btn__icon" src="assets/titlebar-logo.png" alt="" width="40" height="40" />
-            </button>
-            <button type="button" class="widget-btn" id="wDiscord" title="Discord">
-              <img class="widget-btn__icon" src="assets/ds.png" alt="" width="40" height="40" />
-            </button>
-            <button type="button" class="widget-btn" id="wVk" title="ВКонтакте">
-              <img class="widget-btn__icon" src="assets/vk.png" alt="" width="40" height="40" />
-            </button>
-            <button type="button" class="widget-btn" id="wBugReport" title="Сообщить о баге">
-              <img class="widget-btn__icon" src="assets/bug.png" alt="" width="40" height="40" />
-            </button>
-          </div>
-
-          <div class="dock-launch-row">
             <div class="dock-launch__track" id="dockLaunchTrack">
               <div class="fivem-progress" id="fivemProgress" hidden>
                 <div class="fivem-progress__meta">
@@ -108,6 +106,7 @@
                 Обход не используется
               </p>
             </div>
+
             <button type="button" class="btn btn-check-updates" id="btnCheckUpdates" title="Проверить обновления лаунчера">
               <span class="btn-check-updates__arrows" aria-hidden="true">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
