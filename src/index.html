@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: http:; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; frame-src 'self' https: http:; script-src 'self'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Afterlife Launcher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app" id="app" data-bypass="closed" data-dev="false">
+      <header class="titlebar">
+        <div class="titlebar-drag">
+          <div class="titlebar-logo-wrap" title="">
+            <img
+              class="titlebar-logo"
+              id="titlebarLogo"
+              src="assets/titlebar-logo.png"
+              width="32"
+              height="32"
+              alt=""
+              decoding="async"
+            />
+          </div>
+          <span class="titlebar-title">AFTERLIFE</span>
+          <span class="titlebar-sub">DayZ · FiveM</span>
+          <span class="titlebar-dev" id="titlebarDev">DEV</span>
+        </div>
+        <div class="titlebar-actions">
+          <button type="button" class="tb-btn" id="btnMin" title="Свернуть">—</button>
+          <button type="button" class="tb-btn" id="btnMax" title="Развернуть">▢</button>
+          <button type="button" class="tb-btn tb-close" id="btnClose" title="Закрыть">✕</button>
+        </div>
+      </header>
+
+      <div class="body-row" id="bodyRow">
+        <div class="main-grid">
+        <aside class="side-panel">
+          <div class="card glass server-card" id="serverCard">
+            <div class="server-title-row">
+              <div class="server-title-main">
+                <span class="server-title-prefix">Сервер:</span>
+                <span class="server-name" id="serverName">—</span>
+              </div>
+              <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
+                <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
+              </button>
+            </div>
+            <div class="server-stats-row">
+              <span class="pill pill--server" id="serverPlayers">Игроки: —</span>
+              <span class="pill pill--server" id="serverPing">Пинг: —</span>
+              <span class="server-badge server-badge--inline" id="serverBadge" data-state="loading">Проверка…</span>
+            </div>
+          </div>
+
+          <div class="card glass actions-card">
+            <div class="card-label">Запуск</div>
+            <div class="launch-row">
+              <button type="button" class="btn btn-primary btn-glow" id="btnPlay">
+                <span class="btn-play-icon"></span>
+                ИГРАТЬ
+              </button>
+            </div>
+            <label class="field">
+              <span>FiveM.exe</span>
+              <div class="row-input">
+                <input type="text" id="inputFivemPath" placeholder="%LocalAppData%\FiveM\FiveM.exe" spellcheck="false" />
+                <button type="button" class="btn btn-ghost" id="btnAutoFivem">Найти</button>
+              </div>
+            </label>
+            <button type="button" class="btn btn-secondary btn-block" id="btnFivemDownload">
+              Установка / обновление FiveM (официальный сайт)
+            </button>
+          </div>
+
+          <div class="card glass user-network-card" id="userNetworkCard">
+            <div class="user-network-card__top">
+              <div class="card-label">Сеть</div>
+              <button type="button" class="btn btn-primary btn-repair-network" id="btnRepairNetwork">
+                Починить сеть
+              </button>
+              <label class="field field--repair-tunnel">
+                <input type="checkbox" id="chkRepairTunnel" />
+                <span>Использовать туннелирование (хуже пинг)</span>
+              </label>
+            </div>
+            <div class="user-network-info-box" id="userNetworkInfoBox" aria-label="Статус сети" role="status">
+              <p class="user-network-status" id="userRepairStatus" data-state="idle"></p>
+            </div>
+          </div>
+
+          <div class="card glass side-social-card">
+            <div class="card-label">Ссылки</div>
+            <div class="side-social-widgets">
+              <button type="button" class="widget-btn" id="wSite" title="Сайт проекта">
+                <img class="widget-btn__icon" src="assets/titlebar-logo.png" alt="" width="40" height="40" />
+              </button>
+              <button type="button" class="widget-btn" id="wDiscord" title="Discord">
+                <img class="widget-btn__icon" src="assets/ds.png" alt="" width="40" height="40" />
+              </button>
+              <button type="button" class="widget-btn" id="wVk" title="ВКонтакте">
+                <img class="widget-btn__icon" src="assets/vk.png" alt="" width="40" height="40" />
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <section class="center-panel">
+          <div class="webview-wrap glass webview-wrap--placeholder" id="embedPanel">
+            <div class="native-news-panel" id="nativeNewsPanel" role="region" aria-label="Новости">
+              <div class="native-news-loading" id="nativeNewsLoading">Загрузка новостей…</div>
+              <article class="native-news-body" id="nativeNewsBody" hidden></article>
+              <div class="native-news-list" id="nativeNewsList" hidden role="list" aria-label="Последние новости"></div>
+            </div>
+            <p class="webview-watermark" aria-hidden="true">
+              AfterLife DayZ — All Rights reserved 2026 · Launcher by Magner v 0.21.1 ALPHA
+            </p>
+            <webview
+              id="siteWebview"
+              src="about:blank"
+              allowpopups
+              partition="persist:afterlife"
+              useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+              style="position:absolute; left:-20000px; top:0; width:1280px; height:900px; opacity:0; pointer-events:none;"
+            ></webview>
+          </div>
+        </section>
+        </div>
+
+        <aside class="bypass-panel glass" id="bypassPanel" aria-hidden="true">
+        <div class="bypass-inner">
+          <h2 class="bypass-title">Режим разработчика</h2>
+          <p class="bypass-desc">
+            Узел sing-box и проверка сети. Запуск и остановка обхода — в блоке «Сеть» слева. Подписка и пути к sing-box — в
+            <code>launcher.config.json</code>.
+          </p>
+
+          <div class="bypass-tools">
+            <div class="bypass-tools-heading">Обход (sing-box)</div>
+            <label class="field field--bypass">
+              <span>Узел</span>
+              <select id="selectBypassVless" class="bypass-select"></select>
+            </label>
+            <button type="button" class="btn btn-ghost btn-save-bypass" id="btnBypassVlessRefresh">Обновить список узлов</button>
+
+            <div class="bypass-tools-heading">Домены для пинга</div>
+            <ul class="ping-domain-preview" id="devPingDomainList"></ul>
+            <div class="bypass-toolbar bypass-toolbar--ping-only">
+              <button type="button" class="btn btn-secondary bypass-toolbar__ping" id="btnPingAll">Пинг доменов</button>
+            </div>
+            <div class="ping-list" id="pingList"></div>
+          </div>
+
+          <div class="bypass-tools">
+            <div class="bypass-tools-heading">Фрейм центральной панели</div>
+            <p class="bypass-hint">Адрес сайта во фрейме задан в коде лаунчера (не меняется из UI).</p>
+            <label class="field field--bypass field--bypass-check">
+              <input type="checkbox" id="chkEmbedActive" />
+              <span>Включить сайт во фрейме</span>
+            </label>
+            <button type="button" class="btn btn-ghost btn-save-bypass" id="btnReloadEmbed">Применить настройки фрейма</button>
+          </div>
+        </div>
+      </aside>
+
+        <div class="dev-pin-gate" id="devPinGate" hidden aria-hidden="true">
+          <div class="dev-pin-gate__card glass">
+            <p class="dev-pin-gate__title">Режим разработчика</p>
+            <p class="dev-pin-gate__hint">Введите код доступа</p>
+            <input
+              type="password"
+              class="dev-pin-gate__input"
+              id="devPinInput"
+              maxlength="32"
+              autocomplete="off"
+              inputmode="numeric"
+              aria-label="Код доступа"
+            />
+            <div class="dev-pin-gate__actions">
+              <button type="button" class="btn btn-primary" id="devPinSubmit">Войти</button>
+              <button type="button" class="btn btn-ghost" id="devPinCancel">Отмена</button>
+            </div>
+            <p class="dev-pin-gate__err" id="devPinErr" hidden></p>
+          </div>
+        </div>
+      </div>
+
+      <footer class="bottom-bar">
+        <div class="admin-banner" id="adminBanner" hidden>
+          <p class="admin-banner__text" id="adminBannerText">
+            Для системного туннеля sing-box (TUN) лаунчер должен быть запущен от имени администратора.
+          </p>
+          <button type="button" class="btn btn-secondary admin-banner__btn" id="btnRestartElevated">
+            Перезапустить как администратор
+          </button>
+        </div>
+        <div class="bottom-bar__row bottom-bar__row--footer-meta">
+          <span class="bottom-bar__flex-spacer" aria-hidden="true"></span>
+          <button type="button" class="btn-bypass btn-bypass--dev-only" id="btnBypassToggle" aria-expanded="false" title="Панель обхода">
+            <span class="bypass-icon"></span>
+            ОБХОД
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <div class="al-modal-backdrop" id="alModalBackdrop" hidden aria-hidden="true">
+      <div class="al-modal glass" id="alModal" role="dialog" aria-modal="true" aria-labelledby="alModalTitle" aria-describedby="alModalBody">
+        <div class="al-modal__accent" aria-hidden="true"></div>
+        <header class="al-modal__header">
+          <span class="al-modal__icon" id="alModalIcon" aria-hidden="true"></span>
+          <h3 class="al-modal__title" id="alModalTitle"></h3>
+        </header>
+        <div class="al-modal__body" id="alModalBody"></div>
+        <ul class="al-modal__list" id="alModalList" hidden></ul>
+        <footer class="al-modal__actions" id="alModalActions"></footer>
+      </div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

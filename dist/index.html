@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: http:; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; frame-src 'self' https: http:; script-src 'self'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Afterlife Launcher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app" id="app" data-bypass="closed" data-dev="false">
+      <header class="titlebar">
+        <div class="titlebar-drag">
+          <div class="titlebar-logo-wrap" title="">
+            <img
+              class="titlebar-logo"
+              id="titlebarLogo"
+              src="assets/titlebar-logo.png"
+              width="32"
+              height="32"
+              alt=""
+              decoding="async"
+            />
+          </div>
+          <span class="titlebar-title">AFTERLIFE</span>
+          <span class="titlebar-sub">FiveM · Zombie</span>
+          <span class="titlebar-dev" id="titlebarDev" title="Режим разработчика (Shift+F12)">DEV</span>
+        </div>
+        <div class="titlebar-actions">
+          <button type="button" class="tb-btn" id="btnMin" title="Свернуть">—</button>
+          <button type="button" class="tb-btn" id="btnMax" title="Развернуть">▢</button>
+          <button type="button" class="tb-btn tb-close" id="btnClose" title="Закрыть">✕</button>
+        </div>
+      </header>
+
+      <div class="body-row" id="bodyRow">
+        <div class="main-grid">
+        <aside class="side-panel">
+          <div class="card glass server-card" id="serverCard">
+            <div class="server-title-row">
+              <div class="server-title-main">
+                <span class="server-title-prefix">Сервер:</span>
+                <span class="server-name" id="serverName">—</span>
+              </div>
+              <button type="button" class="btn-refresh-server" id="btnRefreshServer" title="Обновить онлайн и доступность" aria-label="Обновить данные сервера">
+                <span class="btn-refresh-server__icon" aria-hidden="true">↻</span>
+              </button>
+            </div>
+            <div class="server-stats-row">
+              <span class="pill pill--server" id="serverPlayers">Игроки: —</span>
+              <span class="pill pill--server" id="serverPing">Пинг: —</span>
+              <span class="server-badge server-badge--inline" id="serverBadge" data-state="loading">Проверка…</span>
+            </div>
+          </div>
+
+          <div class="card glass actions-card">
+            <div class="card-label">Подключение и запуск</div>
+            <div class="launch-row">
+              <button type="button" class="btn btn-primary btn-glow" id="btnPlay">
+                <span class="btn-play-icon"></span>
+                ИГРАТЬ
+              </button>
+            </div>
+            <label class="field">
+              <span>Подключение</span>
+              <input type="text" id="inputConnect" placeholder="45.136.205.9:30120 или https://cfx.re/join/…" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>FiveM.exe</span>
+              <div class="row-input">
+                <input type="text" id="inputFivemPath" placeholder="%LocalAppData%\FiveM\FiveM.exe" spellcheck="false" />
+                <button type="button" class="btn btn-ghost" id="btnAutoFivem">Найти</button>
+              </div>
+            </label>
+            <button type="button" class="btn btn-secondary btn-block" id="btnFivemDownload">
+              Установка / обновление FiveM (официальный сайт)
+            </button>
+          </div>
+
+          <div class="card glass user-network-card" id="userNetworkCard">
+            <div class="card-label">Сеть</div>
+            <button type="button" class="btn btn-primary btn-repair-network" id="btnRepairNetwork">
+              Починить сеть
+            </button>
+            <p class="user-network-status" id="userRepairStatus" hidden></p>
+          </div>
+        </aside>
+
+        <section class="center-panel">
+          <div class="webview-wrap glass webview-wrap--placeholder" id="embedPanel">
+            <webview
+              id="siteWebview"
+              src="about:blank"
+              allowpopups
+              partition="persist:afterlife"
+              useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ></webview>
+          </div>
+        </section>
+        </div>
+
+        <aside class="bypass-panel glass" id="bypassPanel" aria-hidden="true">
+        <div class="bypass-inner">
+          <h2 class="bypass-title">Режим разработчика</h2>
+          <p class="bypass-desc">
+            Только <strong>sing-box</strong> (TUN по подписке с <code>vless://</code>). URI в систему не открываются. Подписка и путь к
+            <code>sing-box.exe</code> — ниже; при пустом пути ищется рядом с лаунчером. Для TUN на Windows часто нужен запуск от имени администратора.
+          </p>
+          <div class="bypass-tools-heading">Домены для пинга (из конфига, <code>checkDomains</code>)</div>
+          <ul class="ping-domain-preview" id="devPingDomainList"></ul>
+          <div class="bypass-toolbar bypass-toolbar--ping-only">
+            <button type="button" class="btn btn-secondary bypass-toolbar__ping" id="btnPingAll">Пинг доменов</button>
+          </div>
+          <div class="ping-list" id="pingList"></div>
+
+          <div class="bypass-tools">
+            <div class="bypass-tools-heading">sing-box</div>
+            <label class="field field--bypass">
+              <span>Подписка HTTPS (список vless://)</span>
+              <input type="text" id="inputVpnSubscriptionUrl" placeholder="https://…" spellcheck="false" />
+            </label>
+            <label class="field field--bypass">
+              <span>Путь к sing-box.exe (пусто — рядом с лаунчером)</span>
+              <input type="text" id="inputTunnelSingBox" placeholder="sing-box.exe" spellcheck="false" />
+            </label>
+            <div class="bypass-tools-heading">Фрейм центральной панели (embedActive + embedUrl)</div>
+            <label class="field field--bypass field--bypass-check">
+              <input type="checkbox" id="chkEmbedActive" />
+              <span>Включить сайт во фрейме (embedActive)</span>
+            </label>
+            <label class="field field--bypass">
+              <span>URL для webview (embedUrl)</span>
+              <input type="text" id="inputEmbedUrl" placeholder="https://vk.com/afterlife_dayz" spellcheck="false" />
+            </label>
+            <button type="button" class="btn btn-ghost btn-save-bypass" id="btnReloadEmbed">Применить настройки фрейма</button>
+            <div class="bypass-tunnel-actions">
+              <button type="button" class="btn btn-secondary" id="btnStopTunnel">Остановить туннель</button>
+            </div>
+            <button type="button" class="btn btn-ghost btn-save-bypass" id="btnSaveBypass">Сохранить пути</button>
+          </div>
+          <div class="log-box" id="bypassLog" role="log"></div>
+        </div>
+      </aside>
+      </div>
+
+      <footer class="bottom-bar">
+        <div class="admin-banner" id="adminBanner" hidden>
+          <p class="admin-banner__text" id="adminBannerText">
+            Для системного туннеля sing-box (TUN) лаунчер должен быть запущен от имени администратора.
+          </p>
+          <button type="button" class="btn btn-secondary admin-banner__btn" id="btnRestartElevated">
+            Перезапустить как администратор
+          </button>
+        </div>
+        <div class="bottom-bar__row">
+          <div class="bottom-widgets">
+            <button type="button" class="widget-btn" id="wSite" title="Сайт проекта">
+              <img class="widget-btn__icon" src="assets/titlebar-logo.png" alt="" width="22" height="22" />
+              <span class="w-text">Сайт</span>
+            </button>
+            <button type="button" class="widget-btn" id="wDiscord" title="Discord">
+              <img class="widget-btn__icon" src="assets/ds.png" alt="" width="22" height="22" />
+              <span class="w-text">Discord</span>
+            </button>
+            <button type="button" class="widget-btn" id="wVk" title="ВКонтакте">
+              <img class="widget-btn__icon" src="assets/vk.png" alt="" width="22" height="22" />
+              <span class="w-text">ВКонтакте</span>
+            </button>
+          </div>
+          <button type="button" class="btn-bypass btn-bypass--dev-only" id="btnBypassToggle" aria-expanded="false" title="Панель обхода (только режим разработчика)">
+            <span class="bypass-icon"></span>
+            ОБХОД
+          </button>
+        </div>
+      </footer>
+      <p class="app-watermark" aria-hidden="true">
+        AfterLife DayZ - All Rights reverved 2026 (c) Launcher by Magner
+      </p>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
