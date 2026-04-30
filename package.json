@@ -12,9 +12,10 @@
     "sync:alpha:installer": "node scripts/sync-alpha.js --mode=dist-installer",
     "start": "npm run sync:alpha:start && electron .",
     "pack": "npm run sync:alpha:pack && electron-builder --dir",
-    "dist": "npm run sync:alpha:dist && electron-builder --win portable",
+    "dist": "electron-builder --win portable",
+    "dist:alpha": "npm run sync:alpha:dist && electron-builder --win portable",
     "dist:installer": "npm run sync:alpha:installer && electron-builder --win nsis",
-    "dist:portable-fast": "npm run sync:alpha:dist && electron-builder --win dir",
+    "dist:portable-fast": "electron-builder --win dir",
     "pack-fivem": "node scripts/pack-fivem-zip.js",
     "pack-fivem:full": "node scripts/pack-fivem-zip.js --full"
   },
