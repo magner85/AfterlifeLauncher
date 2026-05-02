@@ -1937,13 +1937,31 @@ html, body {
       }
 
       if (allOk) {
-        await showAlModal({
+        const okChoice = await showAlModal({
           kind: 'info',
           title: 'Проверка сети',
           message:
-            'Все проверки TCP 443 прошли успешно. Отдельный обход не обязателен.\n\n' + detailMsg,
-          buttons: [{ value: 'close', label: 'Закрыть', primary: true }]
+            'Все проверки TCP 443 прошли успешно. Отдельный обход не обязателен, но его можно включить вручную или закрыть лаунчер.\n\n' +
+            detailMsg,
+          buttons: [
+            { value: 'close', label: 'Закрыть', cancel: true },
+            { value: 'quit', label: 'Закрыть лаунчер', danger: true },
+            { value: 'repair', label: 'Всё равно включить обход', primary: true }
+          ]
         });
+        if (okChoice && okChoice.value === 'repair') {
+          await runRknRepairAfterProbe(useTunnelOnly);
+          return;
+        }
+        if (okChoice && okChoice.value === 'quit') {
+          const go = await showAlConfirm('Закрыть лаунчер полностью?', {
+            title: 'Выход',
+            kind: 'confirm',
+            okLabel: 'Закрыть',
+            danger: true
+          });
+          if (go) window.launcher.close();
+        }
         return;
       }
 
