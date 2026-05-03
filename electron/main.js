@@ -1865,11 +1865,43 @@ function fivemShellConnectUri(addr) {
 }
 
 /**
- * FiveM проверяет «запуск из оболочки»: нужен `cmd /c start "" …`, а не дочерний процесс Electron/openPath/explorer.
+ * Запуск по `fivem://` как из браузера (openExternal / ярлык .url), иначе `cmd /c start`.
+ * `windowsHide: true` у cmd даёт CREATE_NO_WINDOW — у FiveM это иногда считается «не из оболочки».
  */
-function launchFiveMViaShellStart(fivemExePath, cwd, addr) {
+async function launchFiveMFromUriWindows(uri) {
+  const u = String(uri || '').trim();
+  if (!u) return false;
+  try {
+    await shell.openExternal(u);
+    return true;
+  } catch (_) {}
+  const fn = path.join(app.getPath('temp'), `afterlife-fivem-${process.pid}-${Date.now()}.url`);
+  try {
+    fs.writeFileSync(fn, `[InternetShortcut]\r\nURL=${u}\r\n`, 'utf8');
+    const err = await shell.openPath(fn);
+    if (!err) {
+      setTimeout(() => {
+        try {
+          fs.unlinkSync(fn);
+        } catch (_) {}
+      }, 8000);
+      return true;
+    }
+  } catch (_) {}
+  try {
+    fs.unlinkSync(fn);
+  } catch (_) {}
+  return false;
+}
+
+async function launchFiveMViaShellStart(fivemExePath, cwd, addr) {
   const exe = String(fivemExePath || '').trim();
   if (!exe) throw new Error('empty target');
+  const uri = addr ? fivemShellConnectUri(addr) : '';
+  if (uri) {
+    const ok = await launchFiveMFromUriWindows(uri);
+    if (ok) return;
+  }
   launchFiveMWindowsViaCmdStart(fivemExePath, cwd || path.dirname(exe), addr);
 }
 
@@ -1945,6 +1977,7 @@ function launchFiveMWindowsDeelevated(fivemExePath, cwd, addr, trustLevel) {
 
 /**
  * Запасной путь: `cmd /c start "" …` без /B — /B ломает распознавание «из оболочки» для FiveM.
+ * windowsHide: false — иначе у дочернего процесса может быть скрытая консоль (FiveM режет такой старт).
  */
 function launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr) {
   const comspec = process.env.ComSpec || path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
@@ -1956,15 +1989,14 @@ function launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr) {
     cwd,
     detached: true,
     stdio: 'ignore',
-    windowsHide: true
+    windowsHide: false
   });
   child.on('error', () => {});
   child.unref();
 }
 
-/** Запуск только через cmd start (требование FiveM). */
-function launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr) {
-  launchFiveMViaShellStart(fivemExePath, cwd, addr);
+async function launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr) {
+  await launchFiveMViaShellStart(fivemExePath, cwd, addr);
 }
 
 const FIVEM_BUNDLE_ZIP_NAME = 'FiveM.zip';
@@ -2296,9 +2328,9 @@ ipcMain.handle('fivem:launch', async (_e, opts) => {
   const addr = normalizeConnectArg(connectArg);
   try {
     if (process.platform === 'win32') {
-      /** Без админа: только cmd /c start — иначе FiveM: «launch from shell or web browser». */
+      /** Без админа: fivem:// через оболочку ОС, затем cmd /c start (без скрытого окна). */
       if (!isWindowsElevated()) {
-        launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr);
+        await launchFiveMViaShellStart(fivemExePath, cwd, addr);
         return { ok: true };
       }
       /** С админом: сначала планировщик (Limited + cmd start), иначе FiveM наследует IL. */
