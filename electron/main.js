@@ -1865,38 +1865,12 @@ function fivemShellConnectUri(addr) {
 }
 
 /**
- * Запуск как из браузера / двойного щелчка: ShellExecute через Electron (не spawn FiveM.exe).
- * `explorer.exe "…\FiveM.exe"` на Win10+ часто только открывает папку с файлом — FiveM тогда ругается.
- * `fivem://…` — через openExternal (регистрация протокола); только exe — через openPath.
- * Запасной вариант — explorer.exe с одним аргументом (URI или путь), как раньше.
+ * FiveM проверяет «запуск из оболочки»: нужен `cmd /c start "" …`, а не дочерний процесс Electron/openPath/explorer.
  */
-async function launchFiveMViaExplorer(fivemExePath, addr) {
-  const uri = addr ? fivemShellConnectUri(addr) : '';
+function launchFiveMViaShellStart(fivemExePath, cwd, addr) {
   const exe = String(fivemExePath || '').trim();
-  if (uri) {
-    try {
-      await shell.openExternal(uri);
-      return;
-    } catch (_) {
-      /** openExternal недоступен / протокол — ниже explorer или пустая ошибка. */
-    }
-  } else if (exe) {
-    const openErr = await shell.openPath(exe);
-    if (!openErr) return;
-  }
-  const explorer = path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
-  const arg = uri || exe;
-  if (!arg) throw new Error('empty target');
-  await new Promise((resolve, reject) => {
-    try {
-      const ex = spawn(explorer, [arg], { detached: true, stdio: 'ignore', windowsHide: true });
-      ex.on('error', (e) => reject(e));
-      ex.unref();
-      resolve();
-    } catch (e) {
-      reject(e);
-    }
-  });
+  if (!exe) throw new Error('empty target');
+  launchFiveMWindowsViaCmdStart(fivemExePath, cwd || path.dirname(exe), addr);
 }
 
 /**
@@ -1988,13 +1962,9 @@ function launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr) {
   child.unref();
 }
 
-/** Как ярлык из проводника: сначала explorer.exe + fivem:// или путь к .exe, иначе start. */
-async function launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr) {
-  try {
-    await launchFiveMViaExplorer(fivemExePath, addr);
-  } catch (_) {
-    launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr);
-  }
+/** Запуск только через cmd start (требование FiveM). */
+function launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr) {
+  launchFiveMViaShellStart(fivemExePath, cwd, addr);
 }
 
 const FIVEM_BUNDLE_ZIP_NAME = 'FiveM.zip';
@@ -2326,45 +2296,32 @@ ipcMain.handle('fivem:launch', async (_e, opts) => {
   const addr = normalizeConnectArg(connectArg);
   try {
     if (process.platform === 'win32') {
-      /** Без прав админа: запускаем через shell (explorer/start), чтобы FiveM не видел прямой child-process запуск. */
+      /** Без админа: только cmd /c start — иначе FiveM: «launch from shell or web browser». */
       if (!isWindowsElevated()) {
-        try {
-          await launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr);
-          return { ok: true };
-        } catch {
-          /** Прямой spawn FiveM.exe даёт «launch from shell or browser» — только cmd start / explorer. */
-          launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr);
-          return { ok: true };
-        }
-      }
-      if (isWindowsElevated()) {
-        /** Сначала explorer (как двойной щелчок / протокол), затем задача Limited, затем runas — FiveM требует shell, не прямой child. */
-        try {
-          await launchFiveMViaExplorer(fivemExePath, addr);
-        } catch {
-          try {
-            await launchFiveMWindowsDeelevatedViaScheduledTask(fivemExePath, cwd, addr);
-          } catch {
-            try {
-              await launchFiveMWindowsDeelevated(fivemExePath, cwd, addr, '0x20000');
-            } catch {
-              try {
-                await launchFiveMWindowsDeelevated(fivemExePath, cwd, addr, '0x10000');
-              } catch {
-                launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr);
-                return {
-                  ok: true,
-                  warn:
-                    'FiveM мог запуститься с правами администратора и закрыться с ошибкой. Закройте лаунчер и откройте его без «Запуск от имени администратора» (для sing-box/TUN используйте «Перезапустить как администратор» только когда нужен туннель).'
-                };
-              }
-            }
-          }
-        }
+        launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr);
         return { ok: true };
       }
-      await launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr);
-      return { ok: true };
+      /** С админом: сначала планировщик (Limited + cmd start), иначе FiveM наследует IL. */
+      if (isWindowsElevated()) {
+        try {
+          await launchFiveMWindowsDeelevatedViaScheduledTask(fivemExePath, cwd, addr);
+          return { ok: true };
+        } catch (_) {}
+        try {
+          await launchFiveMWindowsDeelevated(fivemExePath, cwd, addr, '0x20000');
+          return { ok: true };
+        } catch (_) {}
+        try {
+          await launchFiveMWindowsDeelevated(fivemExePath, cwd, addr, '0x10000');
+          return { ok: true };
+        } catch (_) {}
+        launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr);
+        return {
+          ok: true,
+          warn:
+            'Запуск из-под администратора: если FiveM снова закроется с ошибкой, откройте лаунчер без «Запуск от имени администратора».'
+        };
+      }
     }
     const args = [];
     if (addr) {

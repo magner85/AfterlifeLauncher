@@ -32,12 +32,12 @@
   "tunnelSingBoxPath": "sing-box.exe",
   "bypassVlessIndex": 0,
   "fivemClientZipUrl": "https://afterlifedayz.ru/launcher/FiveM.zip",
-  "updateManifestUrl": "https://afterlifedayz.ru/launcher/launcher-version.json",
-  "updateAllowedDownloadHosts": [],
   "updateRepo": "",
   "updateAssetName": "Afterlife Launcher-portable.exe",
   "updateBranch": "stable",
   "updateVersionManifest": "launcher-version.json",
+  "updateManifestUrl": "https://afterlifedayz.ru/launcher/launcher-version.json",
+  "updateAllowedDownloadHosts": [],
   "fivemBundleBranch": "",
   "updateAutoCheck": true
 }
