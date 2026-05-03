@@ -17,9 +17,11 @@
     "dist:installer": "npm run sync:alpha:installer && electron-builder --win nsis",
     "dist:portable-fast": "electron-builder --win dir",
     "pack-fivem": "node scripts/pack-fivem-zip.js",
-    "pack-fivem:full": "node scripts/pack-fivem-zip.js --full"
+    "pack-fivem:full": "node scripts/pack-fivem-zip.js --full",
+    "upload:ftp": "node scripts/upload-to-ftp.js"
   },
   "devDependencies": {
+    "basic-ftp": "^5.0.5",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "png-to-ico": "^3.0.1"

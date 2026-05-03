@@ -1,6 +1,7 @@
 node_modules/
 release/
 *.log
+ftp-upload.env
 
 # Локальный клиент FiveM для сборки portable (см. npm run pack-fivem)
 bundled-fivem/FiveM.zip

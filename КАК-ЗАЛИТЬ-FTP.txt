@@ -1,0 +1,19 @@
+Я не могу зайти на твой FTP сам — это только твой компьютер и твой хостинг.
+Сделано так: одна команда сама заливает файлы, когда ты один раз пропишешь логин и пароль.
+
+1) Скопируй файл ftp-upload.env.example и назови копию ftp-upload.env (лежит рядом с package.json).
+
+2) Открой ftp-upload.env в блокноте и впиши от хостинга:
+   FTP_HOST, FTP_USER, FTP_PASSWORD
+   и папку FTP_REMOTE_DIR (куда на сервере класть файлы — как в файловом менеджере панели).
+   Проверь HTTPS_PUBLIC_BASE — это тот же каталог, но как ссылка https://...
+
+3) Собери лаунчер:  npm run dist
+
+4) Подготовь FiveM.zip:  npm run pack-fivem   (или положи свой архив в bundled-fivem/FiveM.zip)
+
+5) Залей всё на FTP одной командой:  npm run upload:ftp
+
+Логин и пароль только в ftp-upload.env — этот файл в Git не попадает.
+
+После заливки лаунчер сам качает файлы по ссылкам из launcher.config.json (updateManifestUrl и fivemClientZipUrl).

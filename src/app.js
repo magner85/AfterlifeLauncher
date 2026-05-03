@@ -730,7 +730,7 @@ html, body {
   async function runLauncherSelfUpdateCheck(isManual, precomputed) {
     if (typeof window.launcher.checkSelfUpdate !== 'function') {
       if (isManual) {
-        void showAlAlert('Проверка обновлений недоступна в этой сборке.', { title: 'Обновление', kind: 'warning' });
+        void showAlAlert('Обновлений нет.', { title: 'Обновление', kind: 'info' });
       }
       return;
     }
@@ -748,38 +748,30 @@ html, body {
     }
     if (!r || !r.ok) {
       if (isManual) {
-        void showAlAlert(r?.error || 'Не удалось связаться с GitHub.', { title: 'Обновление', kind: 'error' });
+        void showAlAlert('Обновлений нет.', { title: 'Обновление', kind: 'info' });
       }
       return;
     }
     if (r.devMode) {
       if (isManual) {
-        void showAlAlert(
-          'Запуск из исходников: соберите portable — тогда лаунчер сможет подтягивать exe с GitHub сам.',
-          { title: 'Обновление', kind: 'info' }
-        );
+        void showAlAlert('Обновлений нет.', { title: 'Обновление', kind: 'info' });
       }
       return;
     }
     if (!r.needsUpdate) {
       if (isManual) {
-        void showAlAlert(`У вас актуальная версия: ${r.currentVersion}.`, { title: 'Обновление', kind: 'info' });
+        void showAlAlert('Обновлений нет.', { title: 'Обновление', kind: 'info' });
       }
       return;
     }
-    const rawNotes = typeof r.body === 'string' ? r.body : '';
-    const notesShort = rawNotes
-      ? `\n\n${rawNotes.slice(0, 360)}${rawNotes.length > 360 ? '…' : ''}`
-      : '';
-    const message = `Доступна версия ${r.latestVersion} (сейчас ${r.currentVersion}). Скачать и установить?${notesShort}`;
     const choice = await showAlModal({
-      kind: 'warning',
-      title: 'Обновление лаунчера',
-      message,
+      kind: 'info',
+      title: 'Обновление',
+      message: 'Доступно обновление лаунчера. Установить сейчас?',
       buttons: isManual
         ? [
             { value: 'cancel', label: 'Отмена', cancel: true },
-            { value: 'install', label: 'Скачать и установить', primary: true }
+            { value: 'install', label: 'Установить', primary: true }
           ]
         : [
             { value: 'later', label: 'Позже', cancel: true },
@@ -798,10 +790,10 @@ html, body {
     try {
       const ar = await window.launcher.applySelfUpdate(r.downloadUrl);
       if (!ar || !ar.ok) {
-        void showAlAlert(ar?.error || 'Не удалось применить обновление.', { title: 'Обновление', kind: 'error' });
+        void showAlAlert('Не удалось установить обновление.', { title: 'Обновление', kind: 'error' });
       }
-    } catch (e) {
-      void showAlAlert(String(e.message || e), { title: 'Обновление', kind: 'error' });
+    } catch (_) {
+      void showAlAlert('Не удалось установить обновление.', { title: 'Обновление', kind: 'error' });
     }
   }
 

@@ -53,6 +53,16 @@ function normalizeConfig(merged) {
   c.updateBranch = (c.updateBranch.trim() || 'stable');
   if (typeof c.updateVersionManifest !== 'string') c.updateVersionManifest = '';
   c.updateVersionManifest = (c.updateVersionManifest.trim() || 'launcher-version.json');
+  if (typeof c.updateManifestUrl !== 'string') c.updateManifestUrl = '';
+  c.updateManifestUrl = c.updateManifestUrl.trim();
+  if (!Array.isArray(c.updateAllowedDownloadHosts)) c.updateAllowedDownloadHosts = [];
+  c.updateAllowedDownloadHosts = [
+    ...new Set(
+      c.updateAllowedDownloadHosts
+        .map((s) => String(s || '').trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ];
   if (typeof c.fivemBundleBranch !== 'string') c.fivemBundleBranch = '';
   c.fivemBundleBranch = c.fivemBundleBranch.trim();
   c.updateAutoCheck =
@@ -149,6 +159,13 @@ function getDefaultConfig() {
     updateBranch: 'stable',
     /** Имя JSON в ветке: version + file или downloadUrl. */
     updateVersionManifest: 'launcher-version.json',
+    /**
+     * Полный URL манифеста на вашем сервере (HTTPS), например https://files.example.ru/launcher/launcher-version.json.
+     * Поле downloadUrl в JSON — прямая ссылка на portable .exe. Имеет приоритет над GitHub; при ошибке — fallback на updateRepo.
+     */
+    updateManifestUrl: '',
+    /** Доп. hostname (массив), с которых разрешено скачивание обновления exe (плюс хост из updateManifestUrl). */
+    updateAllowedDownloadHosts: [],
     /** Ветка с FiveM.zip; пусто = та же, что updateBranch. */
     fivemBundleBranch: '',
     /** При старте проверять обновление (манифест ветки или GitHub Releases). */
@@ -244,6 +261,37 @@ async function selfUpdateCheckViaGithubRelease(cfg, repo, currentVersion) {
     body: typeof rel.body === 'string' ? rel.body.slice(0, 1200) : '',
     source: 'release'
   };
+}
+
+/** Манифест по произвольному http(s) URL (ваш CDN/FTP за nginx и т.п.). */
+async function fetchLauncherManifestFromUrl(manifestUrl) {
+  const url = String(manifestUrl || '').trim();
+  if (!url) return null;
+  let uo;
+  try {
+    uo = new URL(url);
+    if (uo.protocol !== 'http:' && uo.protocol !== 'https:') return null;
+  } catch {
+    return null;
+  }
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), 22000);
+  try {
+    const res = await fetch(uo.href, {
+      signal: ac.signal,
+      headers: { 'User-Agent': 'AfterlifeLauncher-SelfUpdate', Accept: 'application/json' }
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error('Невалидный JSON манифеста');
+    }
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 /** JSON из ветки: { version, file?, downloadUrl?, notes? } — без GitHub Releases. */
@@ -722,35 +770,33 @@ ipcMain.handle('launcher:checkSelfUpdate', async () => {
   if (process.platform !== 'win32') {
     return {
       ok: false,
-      error: 'Автообновление exe поддерживается только в Windows.',
+      error: 'UPDATE_UNSUPPORTED',
       currentVersion,
       needsUpdate: false
     };
   }
   const cfg = loadConfig();
-  const repo =
-    parseGithubRepo(cfg.updateRepo) || parseGithubRepo(DEFAULT_SELF_UPDATE_REPO);
-  if (!repo) {
-    return {
-      ok: false,
-      error: 'В launcher.config.json задайте updateRepo в формате owner/repo.',
-      currentVersion,
-      needsUpdate: false
-    };
-  }
-
   const branch = String(cfg.updateBranch || 'stable').trim() || 'stable';
   const manifestName =
     String(cfg.updateVersionManifest || 'launcher-version.json').trim() || 'launcher-version.json';
+  const customManifestUrl = String(cfg.updateManifestUrl || '').trim();
+  const repo =
+    parseGithubRepo(cfg.updateRepo) || parseGithubRepo(DEFAULT_SELF_UPDATE_REPO);
 
-  const resultFromManifest = (manifest) => {
+  const resultFromManifest = (manifest, relativeBaseForFile, sourceKind) => {
     const latestVersion = String(manifest.version || manifest.latest || '')
       .replace(/^v/i, '')
       .trim();
     const file = String(manifest.file || manifest.portableFile || '').trim();
     let downloadUrl = String(manifest.downloadUrl || manifest.url || '').trim();
     if (!downloadUrl && file) {
-      downloadUrl = rawGithubFileUrl(repo.owner, repo.repo, branch, file);
+      if (repo) {
+        downloadUrl = rawGithubFileUrl(repo.owner, repo.repo, branch, file);
+      } else if (relativeBaseForFile) {
+        try {
+          downloadUrl = new URL(file, relativeBaseForFile).href;
+        } catch (_) {}
+      }
     }
     const body = typeof manifest.notes === 'string' ? manifest.notes.slice(0, 1200) : '';
     if (!latestVersion || !downloadUrl) return null;
@@ -763,9 +809,30 @@ ipcMain.handle('launcher:checkSelfUpdate', async () => {
       downloadUrl: needsUpdate ? downloadUrl : '',
       releaseTitle: '',
       body,
-      source: 'branch'
+      source: sourceKind || 'branch'
     };
   };
+
+  if (customManifestUrl) {
+    try {
+      const manifest = await fetchLauncherManifestFromUrl(customManifestUrl);
+      if (manifest && typeof manifest === 'object') {
+        const fromC = resultFromManifest(manifest, customManifestUrl, 'custom');
+        if (fromC) return fromC;
+      }
+    } catch (_) {
+      /** Fallback на GitHub, если updateRepo задан. */
+    }
+  }
+
+  if (!repo) {
+    return {
+      ok: false,
+      error: 'UPDATE_NO_SOURCE',
+      currentVersion,
+      needsUpdate: false
+    };
+  }
 
   try {
     let manifest = null;
@@ -785,7 +852,7 @@ ipcMain.handle('launcher:checkSelfUpdate', async () => {
     }
 
     if (manifest && typeof manifest === 'object') {
-      const fromBr = resultFromManifest(manifest);
+      const fromBr = resultFromManifest(manifest, null, 'branch');
       if (fromBr) return fromBr;
     }
 
@@ -799,6 +866,22 @@ ipcMain.handle('launcher:checkSelfUpdate', async () => {
     };
   }
 });
+
+function isSelfUpdateDownloadHostAllowed(hostname, cfg) {
+  const h = String(hostname || '').trim().toLowerCase();
+  if (!h) return false;
+  if (h === 'github.com' || h.endsWith('.github.com')) return true;
+  if (h === 'raw.githubusercontent.com' || h.endsWith('.githubusercontent.com')) return true;
+  const mu = String(cfg.updateManifestUrl || '').trim();
+  if (mu) {
+    try {
+      if (new URL(mu).hostname.toLowerCase() === h) return true;
+    } catch (_) {}
+  }
+  const extra = cfg && Array.isArray(cfg.updateAllowedDownloadHosts) ? cfg.updateAllowedDownloadHosts : [];
+  if (extra.includes(h)) return true;
+  return false;
+}
 
 ipcMain.handle('launcher:applySelfUpdate', async (_e, downloadUrl) => {
   if (!app.isPackaged) {
@@ -816,13 +899,9 @@ ipcMain.handle('launcher:applySelfUpdate', async (_e, downloadUrl) => {
     return { ok: false, error: 'Некорректная ссылка на файл обновления.' };
   }
   const h = String(uo.hostname || '').toLowerCase();
-  const githubOk =
-    h === 'github.com' ||
-    h.endsWith('.github.com') ||
-    h === 'raw.githubusercontent.com' ||
-    h.endsWith('.githubusercontent.com');
-  if (!githubOk) {
-    return { ok: false, error: 'Разрешена только загрузка с GitHub (raw/releases).' };
+  const cfg = loadConfig();
+  if (!isSelfUpdateDownloadHostAllowed(h, cfg)) {
+    return { ok: false, error: 'FORBIDDEN_UPDATE_HOST' };
   }
   const targetExe = process.execPath;
   const dir = path.dirname(targetExe);
@@ -1786,18 +1865,29 @@ function fivemShellConnectUri(addr) {
 }
 
 /**
- * Запуск URI или .exe через shell пользователя (explorer обычно не elevated) —
- * дочерний FiveM не наследует токен админа от Electron.
+ * Запуск как из браузера / двойного щелчка: ShellExecute через Electron (не spawn FiveM.exe).
+ * `explorer.exe "…\FiveM.exe"` на Win10+ часто только открывает папку с файлом — FiveM тогда ругается.
+ * `fivem://…` — через openExternal (регистрация протокола); только exe — через openPath.
+ * Запасной вариант — explorer.exe с одним аргументом (URI или путь), как раньше.
  */
-function launchFiveMViaExplorer(fivemExePath, addr) {
-  return new Promise((resolve, reject) => {
-    const explorer = path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
-    const uri = addr ? fivemShellConnectUri(addr) : '';
-    const arg = uri || String(fivemExePath || '').trim();
-    if (!arg) {
-      reject(new Error('empty target'));
+async function launchFiveMViaExplorer(fivemExePath, addr) {
+  const uri = addr ? fivemShellConnectUri(addr) : '';
+  const exe = String(fivemExePath || '').trim();
+  if (uri) {
+    try {
+      await shell.openExternal(uri);
       return;
+    } catch (_) {
+      /** openExternal недоступен / протокол — ниже explorer или пустая ошибка. */
     }
+  } else if (exe) {
+    const openErr = await shell.openPath(exe);
+    if (!openErr) return;
+  }
+  const explorer = path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
+  const arg = uri || exe;
+  if (!arg) throw new Error('empty target');
+  await new Promise((resolve, reject) => {
     try {
       const ex = spawn(explorer, [arg], { detached: true, stdio: 'ignore', windowsHide: true });
       ex.on('error', (e) => reject(e));
@@ -2242,23 +2332,8 @@ ipcMain.handle('fivem:launch', async (_e, opts) => {
           await launchFiveMWindowsLikeShortcut(fivemExePath, cwd, addr);
           return { ok: true };
         } catch {
-          /** Аварийный fallback: если shell-старт недоступен, пробуем старый прямой запуск. */
-          const args = addr ? ['+connect', addr] : [];
-          await new Promise((resolve, reject) => {
-            try {
-              const child = spawn(fivemExePath, args, {
-                cwd,
-                detached: true,
-                stdio: 'ignore',
-                windowsHide: true
-              });
-              child.on('error', (err) => reject(err));
-              child.unref();
-              resolve();
-            } catch (e) {
-              reject(e);
-            }
-          });
+          /** Прямой spawn FiveM.exe даёт «launch from shell or browser» — только cmd start / explorer. */
+          launchFiveMWindowsViaCmdStart(fivemExePath, cwd, addr);
           return { ok: true };
         }
       }
