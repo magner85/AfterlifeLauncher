@@ -1864,13 +1864,39 @@ function fivemShellConnectUri(addr) {
   return `fivem://connect/${norm}`;
 }
 
+function spawnShellDetached(exePath, args) {
+  try {
+    if (!exePath || !fs.existsSync(exePath)) return false;
+    const child = spawn(exePath, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false
+    });
+    child.on('error', () => {});
+    child.unref();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 /**
- * Запуск по `fivem://` как из браузера (openExternal / ярлык .url), иначе `cmd /c start`.
- * `windowsHide: true` у cmd даёт CREATE_NO_WINDOW — у FiveM это иногда считается «не из оболочки».
+ * Открыть `fivem://` так же, как Windows по клику в браузере/проводнике.
+ * `shell.openExternal` из Electron иногда отличается от настоящего ShellExecute — FiveM тогда ругается.
  */
 async function launchFiveMFromUriWindows(uri) {
   const u = String(uri || '').trim();
   if (!u) return false;
+  const sys = process.env.SystemRoot || 'C:\\Windows';
+  const rundll = path.join(sys, 'System32', 'rundll32.exe');
+  const explorer = path.join(sys, 'explorer.exe');
+  /** Как «Открыть» по URL в системе (то же, что часто делает браузер по умолчанию). */
+  if (spawnShellDetached(rundll, ['url.dll,FileProtocolHandler', u])) {
+    return true;
+  }
+  if (spawnShellDetached(explorer, [u])) {
+    return true;
+  }
   try {
     await shell.openExternal(u);
     return true;
