@@ -1864,71 +1864,44 @@ function fivemShellConnectUri(addr) {
   return `fivem://connect/${norm}`;
 }
 
-function spawnShellDetached(exePath, args) {
-  try {
-    if (!exePath || !fs.existsSync(exePath)) return false;
-    const child = spawn(exePath, args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: false
-    });
-    child.on('error', () => {});
-    child.unref();
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
 /**
- * Открыть `fivem://` так же, как Windows по клику в браузере/проводнике.
- * `shell.openExternal` из Electron иногда отличается от настоящего ShellExecute — FiveM тогда ругается.
+ * Эмуляция запуска из проводника: один аргумент у explorer.exe — `fivem://…` или полный путь к FiveM.exe.
+ * Раньше с windowsHide: true; для FiveM оставляем видимую консоль/процесс — windowsHide: false.
  */
-async function launchFiveMFromUriWindows(uri) {
-  const u = String(uri || '').trim();
-  if (!u) return false;
-  const sys = process.env.SystemRoot || 'C:\\Windows';
-  const rundll = path.join(sys, 'System32', 'rundll32.exe');
-  const explorer = path.join(sys, 'explorer.exe');
-  /** Как «Открыть» по URL в системе (то же, что часто делает браузер по умолчанию). */
-  if (spawnShellDetached(rundll, ['url.dll,FileProtocolHandler', u])) {
-    return true;
-  }
-  if (spawnShellDetached(explorer, [u])) {
-    return true;
-  }
-  try {
-    await shell.openExternal(u);
-    return true;
-  } catch (_) {}
-  const fn = path.join(app.getPath('temp'), `afterlife-fivem-${process.pid}-${Date.now()}.url`);
-  try {
-    fs.writeFileSync(fn, `[InternetShortcut]\r\nURL=${u}\r\n`, 'utf8');
-    const err = await shell.openPath(fn);
-    if (!err) {
-      setTimeout(() => {
-        try {
-          fs.unlinkSync(fn);
-        } catch (_) {}
-      }, 8000);
-      return true;
+function launchFiveMViaExplorer(fivemExePath, addr) {
+  return new Promise((resolve, reject) => {
+    const explorer = path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe');
+    const uri = addr ? fivemShellConnectUri(addr) : '';
+    const arg = uri || String(fivemExePath || '').trim();
+    if (!arg) {
+      reject(new Error('empty target'));
+      return;
     }
-  } catch (_) {}
-  try {
-    fs.unlinkSync(fn);
-  } catch (_) {}
-  return false;
+    try {
+      const ex = spawn(explorer, [arg], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false
+      });
+      ex.on('error', (e) => reject(e));
+      ex.unref();
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
+  });
 }
 
+/** Сначала explorer (как было в рабочей сборке), при ошибке — cmd /c start. */
 async function launchFiveMViaShellStart(fivemExePath, cwd, addr) {
   const exe = String(fivemExePath || '').trim();
   if (!exe) throw new Error('empty target');
-  const uri = addr ? fivemShellConnectUri(addr) : '';
-  if (uri) {
-    const ok = await launchFiveMFromUriWindows(uri);
-    if (ok) return;
+  const d = cwd || path.dirname(exe);
+  try {
+    await launchFiveMViaExplorer(fivemExePath, addr);
+  } catch (_) {
+    launchFiveMWindowsViaCmdStart(fivemExePath, d, addr);
   }
-  launchFiveMWindowsViaCmdStart(fivemExePath, cwd || path.dirname(exe), addr);
 }
 
 /**
@@ -2354,13 +2327,17 @@ ipcMain.handle('fivem:launch', async (_e, opts) => {
   const addr = normalizeConnectArg(connectArg);
   try {
     if (process.platform === 'win32') {
-      /** Без админа: fivem:// через оболочку ОС, затем cmd /c start (без скрытого окна). */
+      /** Без админа: как раньше — explorer + запасной cmd start. */
       if (!isWindowsElevated()) {
         await launchFiveMViaShellStart(fivemExePath, cwd, addr);
         return { ok: true };
       }
-      /** С админом: сначала планировщик (Limited + cmd start), иначе FiveM наследует IL. */
+      /** С админом: сначала тот же explorer, затем планировщик/runas/cmd (понижение IL). */
       if (isWindowsElevated()) {
+        try {
+          await launchFiveMViaExplorer(fivemExePath, addr);
+          return { ok: true };
+        } catch (_) {}
         try {
           await launchFiveMWindowsDeelevatedViaScheduledTask(fivemExePath, cwd, addr);
           return { ok: true };
